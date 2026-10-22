@@ -263,9 +263,11 @@ def build():
     roles_btn = lambda cls: "".join(f'<button type="button" data-role="{k}" aria-pressed="{"true" if k=="all" else "false"}">{h(v["short"])}</button>' for k, v in ROLES.items())
     tpl = open(os.path.join(os.path.dirname(__file__), "template.html"), encoding="utf8").read()
     html = (tpl.replace("{{CONTOURS}}", hero_contours()).replace("{{ROLES_HERO}}", roles_btn("")).replace("{{ROLES_BAR}}", roles_btn(""))
-            .replace("{{HEADLINE}}", h(A["headline"])).replace("{{SUMMARY}}", h(A["summary"].split(" Pick a role")[0]))  # no-JS has no role switch; main.js restores the full text.replace("{{ROUTE}}", route)
+            # no-JS has no role switch, so the static summary drops the "Pick a role" hint; main.js restores the full text
+            .replace("{{HEADLINE}}", h(A["headline"])).replace("{{SUMMARY}}", h(A["summary"].split(" Pick a role")[0])).replace("{{ROUTE}}", route)
             .replace("{{BLOCKS}}", blocks).replace("{{NUMBERS}}", numbers).replace("{{RELEASES}}", releases).replace("{{SKILLS}}", skills)
             .replace("{{SUMMIT}}", summit).replace("{{MOMO_HERO}}", momo_btn("momo-3d", "▲ Veg momo", "momo-note-3d")))
+    assert "{{" not in html, "unfilled template placeholder: " + html[html.index("{{"):html.index("{{") + 30]
     open(os.path.join(OUT, "index.html"), "w", encoding="utf8", newline="").write(html)
 
     # ---------- data.js ----------

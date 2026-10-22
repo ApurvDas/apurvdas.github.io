@@ -178,8 +178,9 @@ function computeScrollMaps() {
   const pTop = absTop(proj), pBot = pTop + proj.offsetHeight, mid = (pTop + pBot) / 2, sum = absTop($('#summit')) + 40;
   const sMid = Math.max(60, mid - vh / 2), sSum = Math.max(sMid + 200, Math.min(sum - vh / 2, maxScroll));
   altCtrl = [{ s: 0, a: WP.base }, { s: sMid, a: WP.mid }, { s: sSum, a: WP.top }];
-  const a1 = Math.max(.5 * vh, pTop - .3 * vh), d1 = Math.max(a1 + 100, pBot - .7 * vh), a2 = Math.max(d1 + 200, Math.min(absTop($('#summit')) - .55 * vh, maxScroll - 4));
-  stageCtrl = [{ s: 0, a: 0 }, { s: .22 * vh, a: 0 }, { s: a1, a: 1 }, { s: d1, a: 1 }, { s: a2, a: 2 }, { s: Math.max(a2 + 1, maxScroll + 1), a: 2 }];
+  // keep the cabin moving: only a short pause (~a quarter screen of scroll) at Tsomgo Lake, centred on the Projects block
+  const hold = .12 * vh, a1 = Math.max(.1 * vh + 100, sMid - hold), d1 = a1 + 2 * hold, a2 = Math.max(d1 + 200, Math.min(absTop($('#summit')) - .55 * vh, maxScroll - 4));
+  stageCtrl = [{ s: 0, a: 0 }, { s: .1 * vh, a: 0 }, { s: a1, a: 1 }, { s: d1, a: 1 }, { s: a2, a: 2 }, { s: Math.max(a2 + 1, maxScroll + 1), a: 2 }];
 }
 const altAtScroll = s => interp(altCtrl, s, smooth);
 function updateAltitudes() {
