@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en" data-theme="light" data-role="all">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Apurv Das · Ropeway to Nathu La</title>
+<meta name="description" content="Apurv Das, software engineer (MCA 2026): QA, native C++ for weak Windows PCs, full-stack web and AI/ML. Eight projects, three jobs, real numbers, up a ropeway from Gangtok to Nathu La.">
+<meta name="color-scheme" content="light dark">
+<meta property="og:title" content="Apurv Das · Ropeway to Nathu La">
+<meta property="og:description" content="QA, systems, web and AI/ML work with the numbers to back it up.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232f4a6b'/%3E%3Cpath d='M3 24 12 11l5 7 3-4 9 10z' fill='%23f6f9fc'/%3E%3Cpath d='M4 8 28 5' stroke='%23f6f9fc' stroke-width='1.4'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="styles.css">
+<script>
+(function(d){var h=d.documentElement;h.classList.add('js');
+try{if(localStorage.getItem('theme')==='dark')h.dataset.theme='dark'}catch(e){}
+var m=/role=(qa|systems|web|ai)/.exec(location.hash);if(m)h.dataset.role=m[1];
+setTimeout(function(){h.classList.add('ready')},2500)})(document)
+</script>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+  "animejs": "https://cdn.jsdelivr.net/npm/animejs@4.0.2/+esm"
+} }
+</script>
+<script type="module" src="main.js"></script>
+</head>
+<body>
+<a class="skip" href="#stations">Skip to content</a>
+<div class="sky" aria-hidden="true"></div>
+
+<div class="cam" id="cam" data-mode="hero">
+  <canvas id="scene" aria-hidden="true"></canvas>
+  <div class="cam-ui">{{MOMO_HERO}}</div>
+  <p class="cam-cap" id="cam-cap" aria-hidden="true"></p>
+</div>
+
+<svg class="contours" id="contours" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">{{CONTOURS}}</svg>
+<div class="scrim" aria-hidden="true"></div>
+
+<header class="bar">
+  <a class="brand" href="#top"><span class="b-full">Apurv Das</span><span class="b-short" aria-hidden="true">AD</span></a>
+  <div class="roles mini" role="group" aria-label="Role">{{ROLES_BAR}}</div>
+  <p class="alt-read" aria-hidden="true"><span id="alt">1,650</span> m</p>
+  <button class="switch" id="theme" type="button" role="switch" aria-checked="false" aria-label="Night mode"><span class="sw-l" aria-hidden="true">Night</span><span class="track" aria-hidden="true"><span class="knob"></span></span></button>
+  <div class="progress" aria-hidden="true"><i id="progress"></i></div>
+</header>
+
+<section class="hero" id="top" aria-label="Introduction">
+  <div class="hero-in">
+    <p class="eyebrow">Base station · Gangtok · 1,650 m</p>
+    <h1>Apurv Das</h1>
+    <p class="tag">I build fast, good-looking software that still runs well on old, cheap PCs.</p>
+    <div class="role-pick">
+      <p class="label" id="rp-l">Show me the route for</p>
+      <div class="roles" role="group" aria-labelledby="rp-l">{{ROLES_HERO}}</div>
+    </div>
+    <div class="hero-role" id="hero-role">
+      <h2 class="role-headline" id="role-headline" aria-live="polite">{{HEADLINE}}</h2>
+      <p class="role-summary" id="role-summary">{{SUMMARY}}</p><button type="button" class="more-s">Read more</button>
+    </div>
+    <nav class="route" aria-label="Route for the selected role"><ol id="route">{{ROUTE}}</ol></nav>
+    <p class="alt" aria-hidden="true"><span class="cur" id="alt-hero">1,650</span> m → 4,310 m<span class="ruler"><i id="ruler"></i></span></p>
+  </div>
+  <p class="hint" id="hint">Scroll to ride</p>
+</section>
+
+<div class="paper">
+  <div class="wrap">
+    <main id="stations" class="stations">
+      <svg class="rail" id="rail" aria-hidden="true" focusable="false"><g id="rail-arcs"></g><path id="rail-cable"></path><g id="rail-nodes"></g><g id="rail-hl"></g><g id="rail-cabin"></g></svg>
+      <div class="flow" id="flow">
+        {{BLOCKS}}
+        {{NUMBERS}}
+        {{RELEASES}}
+        {{SKILLS}}
+        {{SUMMIT}}
+      </div>
+    </main>
+    <footer class="foot-bar">
+      <p>Plain HTML, CSS and JavaScript. Type is Geist and Geist Mono; the 3D is three.js and the motion anime.js. The map sheet is stylised and decorative, not a survey.</p>
+      <p><a href="mailto:apps.apurv2000@gmail.com">apps.apurv2000@gmail.com</a> · <a href="https://github.com/ApurvDas" rel="noopener">github.com/ApurvDas</a> · <a href="https://www.linkedin.com/in/apurv-das-bb2050150" rel="noopener">linkedin.com/in/apurv-das-bb2050150</a></p>
+    </footer>
+  </div>
+</div>
+
+<aside class="dock" id="dock" aria-label="Altitude profile" hidden></aside>
+<div class="hl-status" id="hl-status" role="status" aria-live="polite"></div>
+</body>
+</html>

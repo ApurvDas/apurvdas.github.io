@@ -1,0 +1,226 @@
+[
+  {
+    "project": "Focus",
+    "file": "focus-timer-light.webp",
+    "caption": "Focus timer with a glass ring that clears as you work (light)",
+    "theme": "light",
+    "source": "existing"
+  },
+  {
+    "project": "Focus",
+    "file": "focus-timer-dark.webp",
+    "caption": "Focus timer in dark mode",
+    "theme": "dark",
+    "source": "existing"
+  },
+  {
+    "project": "Focus",
+    "file": "focus-tasks-light.webp",
+    "caption": "Focus tasks to log time against",
+    "theme": "light",
+    "source": "existing"
+  },
+  {
+    "project": "Focus",
+    "file": "focus-reminders-light.webp",
+    "caption": "Reminders with snooze and repeat",
+    "theme": "light",
+    "source": "existing"
+  },
+  {
+    "project": "Focus",
+    "file": "focus-stats-dark.webp",
+    "caption": "Focus stats: streak, sessions and the last 7 days",
+    "theme": "dark",
+    "source": "existing"
+  },
+  {
+    "project": "Khaata",
+    "file": "khaata-dashboard.webp",
+    "caption": "Khaata dashboard: balance, spending by category, cash flow",
+    "theme": "dark",
+    "source": "existing"
+  },
+  {
+    "project": "Khaata",
+    "file": "khaata-transactions.webp",
+    "caption": "Searchable, filterable transactions ledger",
+    "theme": "dark",
+    "source": "existing"
+  },
+  {
+    "project": "Khaata",
+    "file": "khaata-budgets.webp",
+    "caption": "Monthly budgets with progress bars",
+    "theme": "dark",
+    "source": "existing"
+  },
+  {
+    "project": "Khaata",
+    "file": "khaata-insights.webp",
+    "caption": "Insights: income vs expenses and category mix over time",
+    "theme": "dark",
+    "source": "existing"
+  },
+  {
+    "project": "Ciba Library",
+    "file": "ciba-home-light.webp",
+    "caption": "Ciba Library home with top picks and the latest recipes (light)",
+    "theme": "light",
+    "source": "existing"
+  },
+  {
+    "project": "Ciba Library",
+    "file": "ciba-home-dark.webp",
+    "caption": "Ciba Library home (dark)",
+    "theme": "dark",
+    "source": "existing"
+  },
+  {
+    "project": "Ciba Library",
+    "file": "ciba-browse.webp",
+    "caption": "Browse recipes with category, time, diet and cuisine filters",
+    "theme": "light",
+    "source": "existing"
+  },
+  {
+    "project": "Ciba Library",
+    "file": "ciba-recipe-detail.webp",
+    "caption": "Recipe page with scalable ingredients, method and comments",
+    "theme": "light",
+    "source": "existing"
+  },
+  {
+    "project": "Unigen Manager",
+    "file": "unigen-wifi.webp",
+    "caption": "Wi-Fi page: nearby networks with a 2.4 and 5 GHz view",
+    "theme": "dark",
+    "source": "existing"
+  },
+  {
+    "project": "Unigen Manager",
+    "file": "unigen-bluetooth.webp",
+    "caption": "Bluetooth page: paired and nearby devices",
+    "theme": "dark",
+    "source": "existing"
+  },
+  {
+    "project": "Unigen Manager",
+    "file": "unigen-speed.webp",
+    "caption": "Speed test results and signal strength over time",
+    "theme": "dark",
+    "source": "existing"
+  },
+  {
+    "project": "Unigen Manager",
+    "file": "unigen-traffic.webp",
+    "caption": "Live traffic graph and daily totals per adapter",
+    "theme": "dark",
+    "source": "existing"
+  },
+  {
+    "project": "Unigen Manager",
+    "file": "unigen-widget.webp",
+    "caption": "Tray flyout with the main controls at a glance",
+    "theme": "dark",
+    "source": "existing"
+  },
+  {
+    "project": "Project Manager",
+    "file": "projectmanager-dashboard.webp",
+    "caption": "Dashboard: project stats, open tasks and notifications",
+    "theme": "light",
+    "source": "fresh"
+  },
+  {
+    "project": "Project Manager",
+    "file": "projectmanager-board.webp",
+    "caption": "Kanban board with Todo, In progress, Review and Completed columns",
+    "theme": "light",
+    "source": "fresh"
+  },
+  {
+    "project": "Project Manager",
+    "file": "projectmanager-board-dark.webp",
+    "caption": "The same Kanban board in dark mode",
+    "theme": "dark",
+    "source": "fresh"
+  },
+  {
+    "project": "Project Manager",
+    "file": "projectmanager-task-detail.webp",
+    "caption": "Task detail with checklist, comments, time tracking and history",
+    "theme": "light",
+    "source": "fresh"
+  },
+  {
+    "project": "Project Manager",
+    "file": "projectmanager-analytics.webp",
+    "caption": "Project analytics: completed per week and burndown",
+    "theme": "light",
+    "source": "fresh"
+  },
+  {
+    "project": "WreckBox",
+    "file": "wreckbox-library.webp",
+    "caption": "Library view with BPM, key, energy and file type filters",
+    "theme": "dark",
+    "source": "fresh"
+  },
+  {
+    "project": "WreckBox",
+    "file": "wreckbox-track-analysis.webp",
+    "caption": "Track details panel: BPM, Camelot key and energy",
+    "theme": "dark",
+    "source": "fresh"
+  },
+  {
+    "project": "WreckBox",
+    "file": "wreckbox-visualizer.webp",
+    "caption": "Full-screen DasVis visualizer with the player bar",
+    "theme": "dark",
+    "source": "fresh"
+  },
+  {
+    "project": "DasVis",
+    "file": "dasvis-trails.webp",
+    "caption": "DasVis: Feedback Classic scene, a waveform ring with trails and particles",
+    "theme": "n/a",
+    "source": "fresh"
+  },
+  {
+    "project": "DasVis",
+    "file": "dasvis-chrome.webp",
+    "caption": "DasVis: a liquid chrome blob reflecting the album colours",
+    "theme": "n/a",
+    "source": "fresh"
+  },
+  {
+    "project": "DasVis",
+    "file": "dasvis-organic.webp",
+    "caption": "DasVis: a generated organic world",
+    "theme": "n/a",
+    "source": "fresh"
+  },
+  {
+    "project": "DasVis",
+    "file": "dasvis-tunnel.webp",
+    "caption": "DasVis: Neon Tunnel, one ring per beat",
+    "theme": "n/a",
+    "source": "fresh"
+  },
+  {
+    "project": "NetRisk AI",
+    "file": "netrisk-report-top.webp",
+    "caption": "HTML risk report header with overall level and counts (sample data)",
+    "theme": "light",
+    "source": "fresh"
+  },
+  {
+    "project": "NetRisk AI",
+    "file": "netrisk-report-findings.webp",
+    "caption": "Findings with why it matters and how to fix it (sample data)",
+    "theme": "light",
+    "source": "fresh"
+  }
+]
