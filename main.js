@@ -14,7 +14,8 @@ let reduce = mqReduce.matches, A = null;       // A = anime.js, loaded after fir
 let scene = null;
 
 const flow = $('#flow'), stations = $('#stations'), rail = $('#rail');
-const absTop = el => el.getBoundingClientRect().top + scrollY;
+// layout position from offsetTop, so the entrance transforms below never shift the cable's nodes
+const absTop = el => { let y = 0; for (let e = el; e; e = e.offsetParent) y += e.offsetTop; return y; };
 
 /* ============================== theme ============================== */
 const sw = $('#theme');
@@ -228,11 +229,10 @@ function cabinTick(now) {
 const kickCabin = () => { if (!cabRaf) { cabin_t = 0; cabRaf = requestAnimationFrame(cabinTick); } };
 
 /* ============================== scroll ============================== */
-let camMode = 'hero', lastStageTxt = '', ticking = false;
-const prog = $('#progress'), altEl = $('#alt'), altHero = $('#alt-hero'), ruler = $('#ruler'), hint = $('#hint'), cam = $('#cam'), cap = $('#cam-cap');
-const wide = matchMedia('(min-width: 1100px)');
+let camMode = 'hero', ticking = false;   // the canvas is always full screen; 'hero' and 'ride' only change the framing
+const prog = $('#progress'), altEl = $('#alt'), altHero = $('#alt-hero'), ruler = $('#ruler'), hint = $('#hint'), cam = $('#cam');
 function setCamMode(m) {
-  if (m === camMode) return; camMode = m; cam.dataset.mode = m; scene && (scene.setMode(m === 'pip' ? 'pip' : 'hero'), scene.setActive(m !== 'off'));
+  if (m === camMode) return; camMode = m; cam.dataset.mode = m; scene && scene.setMode(m);
 }
 function update(force) {
   ticking = false;
@@ -240,13 +240,9 @@ function update(force) {
   prog.style.transform = `scaleX(${clamp(s / maxScroll, 0, 1).toFixed(4)})`;
   const txt = fmt(alt); if (altEl.textContent !== txt) { altEl.textContent = txt; altHero.textContent = txt; ruler.style.transform = `scaleX(${clamp((alt - WP.base) / (WP.top - WP.base), 0, 1).toFixed(3)})`; if (dockRefs) dockRefs.alt.textContent = txt + ' m'; }
   hint.classList.toggle('gone', s > 40);
-  const past = s > paperTop - 20; root.classList.toggle('past-hero', past);
-  setCamMode(!past ? 'hero' : (wide.matches && scene ? 'pip' : 'off'));
-  if (scene) {
-    const st = interp(stageCtrl, s, smooth); scene.setStage(st);
-    const t = camMode === 'pip' ? (st < .12 ? `Base · Gangtok · ${fmt(WP.base)} m` : Math.abs(st - 1) < .1 ? `Mid · Tsomgo Lake · ${fmt(WP.mid)} m` : st > 1.9 ? `Top · Nathu La · ${fmt(WP.top)} m` : `Climbing · ${txt} m`) : '';
-    if (t !== lastStageTxt) { lastStageTxt = t; cap.textContent = t; }
-  }
+  const past = s > paperTop - innerHeight * .6; root.classList.toggle('past-hero', past);
+  setCamMode(past ? 'ride' : 'hero');
+  if (scene) scene.setStage(interp(stageCtrl, s, smooth));
   if (dockRefs) { const ay = clamp(s + innerHeight / 2, dockRefs.y0, dockRefs.y1); dockRefs.mark.setAttribute('cx', dockRefs.X(ay)); dockRefs.mark.setAttribute('cy', dockRefs.Y(alt)); }
   kickCabin();
 }
@@ -254,7 +250,6 @@ addEventListener('scroll', () => { if (!ticking) { ticking = true; requestAnimat
 let rzT = 0; addEventListener('resize', () => { clearTimeout(rzT); rzT = setTimeout(() => layout(false), 120); });
 let roT = 0; new ResizeObserver(() => { clearTimeout(roT); roT = setTimeout(() => R_.nodes.length && Math.abs(stations.getBoundingClientRect().height - R_.H) > 1 && layout(false), 80); }).observe(flow);
 new IntersectionObserver(([e]) => root.classList.toggle('hero-roles', e.isIntersecting), { rootMargin: `-${56}px 0px 0px 0px` }).observe($('.role-pick'));
-wide.addEventListener('change', () => update(true));
 
 /* ============================== connections (hover / focus / tap) ============================== */
 const adj = new Map(), link = (a, b) => { (adj.get(a) || adj.set(a, new Set()).get(a)).add(b); (adj.get(b) || adj.set(b, new Set()).get(b)).add(a); };
@@ -334,19 +329,55 @@ const io = new IntersectionObserver(es => es.forEach(e => {
 function observeReveals() { $$('.stats').forEach(s => io.observe(s)); $$('.panels').forEach(s => io.observe(s)); }
 if (reduce) $$('.panels').forEach(p => p.classList.add('in'));
 
+/* ============================== panel entrances (anime.js) ==============================
+   Each glass panel rises and fades in once, as it nears the viewport; its parts follow in a short stagger.
+   Only transform and opacity move. Fast scrolling never queues: at most 3 run at once (the rest simply appear),
+   and a panel that leaves the screen mid-entrance is finished at once. Shown panels are never animated again. */
+const glass = $$('.glass'), running = new Map(), waiting = new Set(), shown = new WeakSet();
+const showNow = el => { shown.add(el); el.classList.add('in'); };
+const partsOf = el => [...el.children].flatMap(c => c.matches('.st-head, .block-head') ? [...c.children] : [c]).slice(0, 7);
+const clearStyle = els => els.forEach(e => { e.style.opacity = ''; e.style.transform = ''; });
+function settle(el) { const r = running.get(el); if (!r) return; running.delete(el); r.anims.forEach(a => a.complete()); clearStyle([el, ...r.parts]); }
+function reveal(el) {
+  if (shown.has(el)) return;
+  if (!A) { waiting.add(el); return; }
+  waiting.delete(el);
+  if (reduce || running.size >= 3) return showNow(el);
+  shown.add(el);
+  const parts = partsOf(el);
+  el.style.opacity = 0; el.style.transform = 'translateY(24px)'; parts.forEach(p => p.style.opacity = 0);
+  el.classList.add('in');
+  const a1 = A.animate(el, { opacity: [0, 1], translateY: [24, 0], duration: 620, ease: 'outQuart', onComplete: () => clearStyle([el]) });
+  const a2 = A.animate(parts, { opacity: [0, 1], translateY: [12, 0], duration: 520, ease: 'outQuart', delay: A.stagger(48, { start: 90 }), onComplete: () => { running.delete(el); clearStyle(parts); } });
+  running.set(el, { anims: [a1, a2], parts });
+}
+const revealIO = 'IntersectionObserver' in window && new IntersectionObserver(es => es.forEach(e => {
+  if (e.isIntersecting) { revealIO.unobserve(e.target); reveal(e.target); }
+}), { rootMargin: '0px 0px -8% 0px' });
+const leaveIO = 'IntersectionObserver' in window && new IntersectionObserver(es => es.forEach(e => { if (!e.isIntersecting) settle(e.target); }));
+const flushReveals = () => [...waiting].forEach(reveal);
+document.addEventListener('focusin', e => { const g = e.target.closest?.('.glass'); if (g && !shown.has(g)) { settle(g); showNow(g); } });
+function armReveals() {
+  if (reduce || root.classList.contains('rv-off') || !revealIO) return glass.forEach(showNow);
+  glass.forEach(g => { revealIO.observe(g); leaveIO.observe(g); });
+}
+
 /* ============================== boot ============================== */
 setTheme(root.dataset.theme, false);
 switchRole(parseRole(), true);
-observeReveals();
+observeReveals(); armReveals();
 addEventListener('load', () => document.fonts?.ready.then(() => layout(false)));
-mqReduce.addEventListener('change', e => { reduce = e.matches; scene && scene.setReduced(reduce); if (reduce) $$('.panels').forEach(p => p.classList.add('in')); update(true); });
+const mqData = matchMedia('(prefers-reduced-data: reduce)'), saveData = () => mqData.matches || !!navigator.connection?.saveData;   // static frame, no travel
+const sceneStill = () => { scene && (scene.setReduced(reduce || saveData()), scene.setStatic(saveData())); };
+mqReduce.addEventListener('change', e => { reduce = e.matches; sceneStill(); if (reduce) { $$('.panels').forEach(p => p.classList.add('in')); [...running.keys()].forEach(settle); glass.forEach(showNow); } update(true); });
 
 // after first paint: motion library, then the scene
-const idle = window.requestIdleCallback || (f => setTimeout(f, 200));
+const idle = window.requestIdleCallback ? f => requestIdleCallback(f, { timeout: 700 }) : (f => setTimeout(f, 200));
 idle(async () => {
   try {
     A = await import('animejs');
     A = { animate: A.animate, stagger: A.stagger, svg: A.svg };
+    flushReveals();
     if (!reduce) {
       const paths = $$('#contours path'), texts = $$('#contours text');
       texts.forEach(t => t.style.opacity = 0);
@@ -354,11 +385,11 @@ idle(async () => {
       A.animate(texts, { opacity: [0, 1], ease: 'outQuad', duration: 800, delay: A.stagger(120, { start: 1200 }) });
       $$('.stats').forEach(s => { if (!seen.has(s) && s.getBoundingClientRect().top < innerHeight) { seen.add(s); $$('.count', s).forEach(countUp); } });
     }
-  } catch (e) { console.warn('anime.js unavailable; motion disabled', e); }
+  } catch (e) { console.warn('anime.js unavailable; motion disabled', e); glass.forEach(showNow); }
   try {
     const mod = await import('./scene.js'), b3 = $('.momo-3d');
-    scene = mod.createScene({ canvas: $('#scene'), stallBtn: b3, onStall: (x, y, vis) => { b3.hidden = !(vis && camMode === 'pip'); if (vis) b3.style.transform = `translate(${x.toFixed(0)}px,${(y - 22).toFixed(0)}px) translate(-50%,-100%)`; } });
-    scene.setTheme(root.dataset.theme); scene.setReduced(reduce); syncAccent(); update(true);
+    scene = mod.createScene({ canvas: $('#scene'), stallBtn: b3, onStall: (x, y, vis) => { b3.hidden = !(vis && camMode === 'ride'); if (vis) { const hw = (b3.firstElementChild.offsetWidth || 120) / 2 + 8; b3.style.transform = `translate(${clamp(x, hw, innerWidth - hw).toFixed(0)}px,${(y - 22).toFixed(0)}px) translate(-50%,-100%)`; } } });
+    scene.setTheme(root.dataset.theme); sceneStill(); scene.setMode(camMode); syncAccent(); update(true);
   } catch (e) { console.warn('3D scene unavailable; the page works without it', e); cam.dataset.mode = 'off'; camMode = 'off'; }
 });
 $('.momo-3d').hidden = true;

@@ -14,7 +14,7 @@
 (function(d){var h=d.documentElement;h.classList.add('js');
 try{if(localStorage.getItem('theme')==='dark')h.dataset.theme='dark'}catch(e){}
 var m=/role=(qa|systems|web|ai)/.exec(location.hash);if(m)h.dataset.role=m[1];
-setTimeout(function(){h.classList.add('ready')},2500)})(document)
+setTimeout(function(){if(!h.classList.contains('ready'))h.classList.add('ready','rv-off')},2500)})(document)
 </script>
 <script type="importmap">
 { "imports": {
@@ -30,9 +30,8 @@ setTimeout(function(){h.classList.add('ready')},2500)})(document)
 
 <div class="cam" id="cam" data-mode="hero">
   <canvas id="scene" aria-hidden="true"></canvas>
-  <div class="cam-ui">{{MOMO_HERO}}</div>
-  <p class="cam-cap" id="cam-cap" aria-hidden="true"></p>
 </div>
+<div class="cam-ui">{{MOMO_HERO}}</div>
 
 <svg class="contours" id="contours" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true" focusable="false">{{CONTOURS}}</svg>
 <div class="scrim" aria-hidden="true"></div>
@@ -76,7 +75,7 @@ setTimeout(function(){h.classList.add('ready')},2500)})(document)
         {{SUMMIT}}
       </div>
     </main>
-    <footer class="foot-bar">
+    <footer class="foot-bar glass">
       <p>Plain HTML, CSS and JavaScript. Type is Geist and Geist Mono; the 3D is three.js and the motion anime.js. The map sheet is stylised and decorative, not a survey.</p>
       <p><a href="mailto:apps.apurv2000@gmail.com">apps.apurv2000@gmail.com</a> · <a href="https://github.com/ApurvDas" rel="noopener">github.com/ApurvDas</a> · <a href="https://www.linkedin.com/in/apurv-das-bb2050150" rel="noopener">linkedin.com/in/apurv-das-bb2050150</a></p>
     </footer>

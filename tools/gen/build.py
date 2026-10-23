@@ -71,7 +71,7 @@ def station(sid):
     cs = (f'<details class="case" data-hl="{sid}"><summary><span>Case study</span></summary><div class="case-body">'
           f'<h4>Problem</h4><p>{h(c["problem"])}</p><h4>Limits</h4><p>{h(c["limits"])}</p>'
           f'<h4>What I built</h4>{lst(c["built"])}<h4>Numbers</h4>{lst(c["numbers"])}<h4>Testing</h4>{lst(c["testing"])}</div></details>')
-    return (f'<article class="station" id="{sid}" data-id="{sid}" data-key="{sid}" data-node="project">'
+    return (f'<article class="station glass" id="{sid}" data-id="{sid}" data-key="{sid}" data-node="project">'
             f'<header class="st-head" data-hl="{sid}"><p class="eyebrow node-anchor"><span class="alt-tag" data-alt></span><span class="kind">{h(s["kind"])}</span></p>'
             f'<h3>{h(s["name"])}</h3><p class="lead">{h(s["lead"])}</p>'
             f'<ul class="tags">{"".join(f"<li>{h(t)}</li>" for t in s["tags"])}</ul></header>'
@@ -85,7 +85,7 @@ def job(jid):
     st = f'<dl class="stats" data-hl="{jid}">{"".join(stat(x) for x in j["stats"])}</dl>' if j["stats"] else ""
     lis = "".join(f"<li>{h(b)}</li>" for b in j["bullets"])
     more = f'<button type="button" class="more" hidden data-n="{len(j["bullets"])}" aria-expanded="false">Show all {len(j["bullets"])}</button>' if len(j["bullets"]) > 1 else ""
-    return (f'<article class="station job" id="{jid}" data-id="{jid}" data-key="{jid}" data-node="job">'
+    return (f'<article class="station job glass" id="{jid}" data-id="{jid}" data-key="{jid}" data-node="job">'
             f'<header class="st-head" data-hl="{jid}"><p class="eyebrow node-anchor"><span class="alt-tag" data-alt></span><span class="kind">{h(j["kind"])}</span></p>'
             f'<h3>{h(j["name"])}</h3><p class="lead">{h(j["lead"])}</p></header>{st}<ul class="bul">{lis}</ul>{more}{related(jid)}</article>')
 
@@ -232,26 +232,26 @@ def build():
     exp = "".join(job(j) for j in A["jobs"])
     prj = "".join(station(p) for p in A["projects"])
     block = {
-        "experience": f'<section class="block" id="experience" data-block="experience"><h2 class="block-title">Experience</h2><div class="group" data-group="jobs">{exp}</div></section>',
-        "projects": (f'<section class="block" id="projects" data-block="projects"><div class="block-head"><h2 class="block-title">Projects<span class="mid-name"> · Mid station · Tsomgo Lake · 3,753 m</span></h2>{lake_patch()}</div>'
+        "experience": f'<section class="block" id="experience" data-block="experience"><div class="block-head glass"><h2 class="block-title">Experience</h2></div><div class="group" data-group="jobs">{exp}</div></section>',
+        "projects": (f'<section class="block" id="projects" data-block="projects"><div class="block-head glass"><h2 class="block-title">Projects<span class="mid-name"> · Mid station · Tsomgo Lake · 3,753 m</span></h2>{lake_patch()}</div>'
                      f'<div class="group" data-group="projects">{prj}</div>'
-                     f'<article class="station mini" id="smartthings" data-id="smartthings" data-key="smartthings" data-node="tool"><header class="st-head" data-hl="smartthings"><p class="eyebrow node-anchor"><span class="alt-tag" data-alt></span><span class="kind">Small tool · Python</span></p><h3>SmartThings A/C</h3>'
+                     f'<article class="station mini glass" id="smartthings" data-id="smartthings" data-key="smartthings" data-node="tool"><header class="st-head" data-hl="smartthings"><p class="eyebrow node-anchor"><span class="alt-tag" data-alt></span><span class="kind">Small tool · Python</span></p><h3>SmartThings A/C</h3>'
                      f'<p class="lead">A one-file Python command-line tool to check and control a Samsung air conditioner through the SmartThings REST API: status, power, temperature.</p></header>{related("smartthings")}</article></section>'),
     }
     blocks = "".join(block[b] for b in A["blocks"])
     panels = "".join(bars_panel(p, None) for p in A["panels"])
-    numbers = (f'<section class="block" id="numbers" data-id="numbers" data-key="numbers" data-node="section"><header class="st-head" data-hl="numbers"><p class="eyebrow node-anchor"><span class="alt-tag" data-alt></span><span class="kind">By the numbers</span></p>'
+    numbers = (f'<section class="block glass" id="numbers" data-id="numbers" data-key="numbers" data-node="section"><header class="st-head" data-hl="numbers"><p class="eyebrow node-anchor"><span class="alt-tag" data-alt></span><span class="kind">By the numbers</span></p>'
                f'<h2 class="block-title">1,035 automated tests, and what the apps cost to run</h2><p class="lead">Test counts come from collecting the suites themselves; the other figures are from the project READMEs.</p></header>'
                f'<div class="panels" data-group="panels">{panels}</div>{related("numbers", "h3")}</section>')
-    releases = (f'<section class="block" id="releases" data-id="releases" data-key="releases" data-node="section"><header class="st-head" data-hl="releases"><p class="eyebrow node-anchor"><span class="alt-tag" data-alt></span><span class="kind">Shipping log</span></p>'
+    releases = (f'<section class="block glass" id="releases" data-id="releases" data-key="releases" data-node="section"><header class="st-head" data-hl="releases"><p class="eyebrow node-anchor"><span class="alt-tag" data-alt></span><span class="kind">Shipping log</span></p>'
                 f'<h2 class="block-title">What I have shipped</h2><p class="lead">Releases with downloads, newest at the bottom of the timeline.</p></header>'
                 f'<div class="ship">{timeline()}{release_log()}</div></section>')
     groups = "".join(skills_group(g) for g in A["groups"])
-    skills = (f'<section class="block" id="skills" data-id="skills" data-key="skills" data-node="section"><header class="st-head" data-hl="skills"><p class="eyebrow node-anchor"><span class="alt-tag" data-alt></span><span class="kind">Skills</span></p>'
+    skills = (f'<section class="block glass" id="skills" data-id="skills" data-key="skills" data-node="section"><header class="st-head" data-hl="skills"><p class="eyebrow node-anchor"><span class="alt-tag" data-alt></span><span class="kind">Skills</span></p>'
               f'<h2 class="block-title">What I use, and where</h2><p class="lead">Hover, focus or tap a skill to see the projects and jobs that use it. Press Enter or tap to pin it.</p></header>'
               f'<div class="sgroups" data-group="groups">{groups}</div>'
               f'<div class="edu"><h3>Education</h3><ul><li><b>Master of Computer Applications (MCA)</b>, UPES, Dehradun · Aug 2024 – Jul 2026 (completed)</li><li><b>Bachelor of Computer Applications (BCA)</b>, Christ (Deemed to be University), Delhi NCR · Apr 2024</li><li><b>Higher Secondary</b>, NIOS · Jun 2020</li></ul></div></section>')
-    summit = (f'<section class="block summit" id="summit" data-id="summit" data-key="summit" data-node="section"><header class="st-head" data-hl="summit"><p class="eyebrow node-anchor"><span class="alt-tag" data-alt></span><span class="kind">Top station · Nathu La · 4,310 m</span></p>'
+    summit = (f'<section class="block summit glass" id="summit" data-id="summit" data-key="summit" data-node="section"><header class="st-head" data-hl="summit"><p class="eyebrow node-anchor"><span class="alt-tag" data-alt></span><span class="kind">Top station · Nathu La · 4,310 m</span></p>'
               f'<h2 class="block-title">Summit</h2><p class="lead">Hiring for QA, systems, web or AI/ML work, or want to talk about fast software on slow hardware? Write to me.</p></header>'
               f'<div class="summit-grid"><div><p class="contact"><a class="btn pri" href="mailto:apps.apurv2000@gmail.com">apps.apurv2000@gmail.com</a>'
               f'<a class="btn" href="https://www.linkedin.com/in/apurv-das-bb2050150" rel="noopener">LinkedIn<span aria-hidden="true"> ↗</span></a>'

@@ -8,10 +8,12 @@ const mulberry = a => () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(
 
 export function createScene({ canvas, stallBtn, onStall }) {
   const root = document.documentElement;
-  let reduce = false, dirty = true, active = true, mode = 'hero', moonOK = true;
+  let reduce = false, frozen = false, dirty = true, mode = 'hero', moonOK = true;
+  // loop state: render while anything moves; ~1 s after the last change only slow ambient things (flags, steam, kids) keep
+  // going, at ~30 fps and only if they are on screen; otherwise the loop stops until something pokes it.
+  let raf = 0, last = 0, lastAct = 0, lastDraw = 0, settled = false, ready = false, clock = 0, distS = 68;
 
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
-  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5));
   renderer.setClearColor(0x000000, 0);
   const scene = new THREE.Scene();
   scene.fog = new THREE.Fog(0xe8eef4, 45, 260);
@@ -200,7 +202,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
     };
     draw(); signs.push(draw); return new THREE.MeshLambertMaterial({ map: tex });
   }
-  document.fonts?.ready.then(() => { signs.forEach(f => f()); dirty = true; });
+  document.fonts?.ready.then(() => { signs.forEach(f => f()); poke(); });
 
   const wheels = [];
   const park = {};
@@ -478,23 +480,25 @@ export function createScene({ canvas, stallBtn, onStall }) {
 
   /* ---------- layout ---------- */
   const Lo = { dist: 68, sx: 0, up: 0, mdx: 0, mdy: 0, w: 1, h: 1 };
-  let zoom = 1;
   function layout() {
     const w = Math.max(1, canvas.clientWidth), h = Math.max(1, canvas.clientHeight), a = w / h;
     Lo.w = w; Lo.h = h;
+    renderer.setPixelRatio(Math.min(devicePixelRatio || 1, w < 700 ? 1 : 1.5));   // the scene now renders on every scrolling frame
     renderer.setSize(w, h, false); camera.aspect = a; camera.updateProjectionMatrix();
-    const t = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+    const t = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)), narrow = 1.34 * (.45 + .55 * a);
     if (mode === 'hero') {
-      Lo.dist = 68 * (a >= 1 ? 1 + Math.max(0, 1.6 - a) * .25 : 1.34 * (.45 + .55 * a));   // closer on narrow screens (still clear of the text above)
+      Lo.dist = 68 * (a >= 1 ? 1 + Math.max(0, 1.6 - a) * .25 : narrow);   // closer on narrow screens (still clear of the text above)
       const hh = t * Lo.dist, hw = hh * a;
       Lo.sx = a > 1 ? hw * .3 : hw * .04; Lo.up = a > 1 ? hh * .08 : hh * .74;
-    } else {
-      Lo.dist = 58; const hh = t * Lo.dist, hw = hh * a; Lo.sx = 0; Lo.up = hh * .12;
+    } else {   // riding: the text panels take the left, so the cabin travels in the clear right third (centred on portrait screens)
+      Lo.dist = 60 * (a >= 1 ? 1 : narrow);
+      const hh = t * Lo.dist, hw = hh * a;
+      Lo.sx = a > 1.15 ? hw * .5 : a > 1 ? hw * .2 : 0; Lo.up = hh * (a > 1 ? .1 : .04);
     }
     const mh = t * (Lo.dist + 250);
     Lo.mdx = -mh * a * .09; Lo.mdy = mh * .47;
-    moonOK = a >= 1; moon.visible = halo.visible = moonOK && moonMat.opacity > .01;   // portrait frames have no clear sky, so no moon there                                              // moon sits clear of the peaks
-    dirty = true;
+    moonOK = a >= 1; moon.visible = halo.visible = moonOK && moonMat.opacity > .01;   // portrait frames have no clear sky, so no moon there
+    poke();
   }
 
   /* ---------- state + loop ---------- */
@@ -502,27 +506,36 @@ export function createScene({ canvas, stallBtn, onStall }) {
   const uOfStage = s => s <= 1 ? UP[0] + (UP[1] - UP[0]) * clamp(s, 0, 1) : UP[1] + (UP[2] - UP[1]) * clamp(s - 1, 0, 1);
   let stage = 0;
   const S = { u: UP[0], uv: 0, th: 0, thv: 0, vw: 0, cx: 0, cy: 0, init: false, dip: 0 };
-  let clock = 0, last = performance.now(), raf = 0, lastCabinX = 0;
+  let lastCabinX = 0;
   const proj = new THREE.Vector3();
 
+  function poke() { dirty = true; lastAct = performance.now(); wake(); }
+  function wake() { if (ready && !raf && !document.hidden) { last = performance.now(); raf = requestAnimationFrame(frame); } }
+  // flags/steam live near the top station, the kids at the base: is any of that in the frame?
+  const ambientInView = () => { const hw = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * distS * camera.aspect + 8; return (S.cx + hw > -68 && S.cx - hw < -46) || (S.cx + hw > 94 && S.cx - hw < 166); };
+
   function frame(now) {
-    raf = requestAnimationFrame(frame);
+    raf = 0;
+    const calm = settled && !dirty && mix === mixTarget && now - lastAct > 1000;
+    if (calm) {
+      if (reduce || !ambientInView()) return;                                    // nothing moves: stop until poke()
+      if (now - lastDraw < 30) { raf = requestAnimationFrame(frame); return; }   // idle ambient: ~30 fps
+    }
     const dt = Math.min(.05, Math.max(.001, (now - last) / 1000)); last = now;
     if (mix !== mixTarget) { mix = mix < mixTarget ? Math.min(mixTarget, mix + dt / .4) : Math.max(mixTarget, mix - dt / .4); applyTheme(); }
-    if (!active) return;
+    const target = uOfStage(reduce ? Math.round(stage) : stage);
     if (reduce) {
-      if (!dirty) return;
-      S.u = uOfStage(Math.round(stage));   // reduced motion: no travel, the cabin rests at the nearest station
+      S.u = target;   // reduced motion: no travel, the cabin rests at the nearest station
       S.uv = S.th = S.thv = S.vw = 0; S.dip = 0;
       updateFlags(0, true); updateKids(0, 1e3, true); steamAt(0, true);
     } else {
       clock += dt;
-      const target = uOfStage(stage);
       const k = 11, a = (target - S.u) * k - S.uv * 2 * Math.sqrt(k);
       S.uv += a * dt; S.u += S.uv * dt;
       const vw = S.uv * CL, aw = (vw - S.vw) / dt; S.vw = vw;
       const thT = clamp(-(vw * .004 + aw * .0012), -.25, .25), w0 = 2.4, z = .18;
       S.thv += (-w0 * w0 * (S.th - thT) - 2 * z * w0 * S.thv) * dt; S.th += S.thv * dt;
+      if (now - lastAct > 1000) { const d = Math.exp(-dt * 3); S.th *= d; S.thv *= d; }   // let the sway die so the loop can rest
       S.dip += (clamp(Math.abs(aw) * .012, 0, .22) - S.dip) * Math.min(1, dt * 6);
       wheels.forEach(w => { w.g.rotation.z -= vw / w.R * dt; });
       updateFlags(clock, false); updateKids(clock, lastCabinX, false); steamAt(clock, false);
@@ -531,37 +544,37 @@ export function createScene({ canvas, stallBtn, onStall }) {
     pivot.position.copy(p); pivot.position.y -= S.dip;
     swing.rotation.z = reduce ? 0 : S.th + Math.sin(clock * .8) * .012;
     const tx = p.x - Lo.sx, ty = p.y + Lo.up;
-    if (!S.init || reduce) { S.cx = tx; S.cy = ty; S.init = true; } else { const f = 1 - Math.exp(-dt * 5); S.cx += (tx - S.cx) * f; S.cy += (ty - S.cy) * f; }
-    const topZoom = mode === 'pip' ? 1 - .2 * sm(1.3, 2, stage) : 1;
-    zoom += (topZoom - zoom) * (reduce ? 1 : Math.min(1, dt * 3));
-    const dist = Lo.dist * zoom;
-    camera.position.set(S.cx, S.cy + dist * .1, dist); camera.lookAt(S.cx, S.cy, 0);
+    if (!S.init || reduce) { S.cx = tx; S.cy = ty; distS = Lo.dist; S.init = true; }
+    else { const f = 1 - Math.exp(-dt * 5); S.cx += (tx - S.cx) * f; S.cy += (ty - S.cy) * f; distS += (Lo.dist - distS) * f; }
+    camera.position.set(S.cx, S.cy + distS * .1, distS); camera.lookAt(S.cx, S.cy, 0);
     stars.position.set(S.cx, S.cy, 0); moon.position.set(S.cx + Lo.mdx, S.cy + Lo.mdy, -250); halo.position.copy(moon.position);
+    settled = reduce || (Math.abs(target - S.u) < 2e-5 && Math.abs(S.uv) < 2e-4 && Math.abs(S.th) < .003 && Math.abs(S.thv) < .004 &&
+      Math.abs(tx - S.cx) < .02 && Math.abs(ty - S.cy) < .02 && Math.abs(Lo.dist - distS) < .03);
 
     // warm light follows the nearest lodge / the stall
     const wx = p.x > (MX + TX) / 2 ? (p.x > TX - 14 ? SX : TX) : (p.x > (BX + MX) / 2 ? MX : BX);
     const wp = wx === SX ? stallPos : new THREE.Vector3(wx, park[wx === BX ? 'base' : wx === MX ? 'mid' : 'top'].y0 + 3, 2.5);
     warm.position.lerp(wp, reduce ? 1 : Math.min(1, dt * 3)); warm.intensity = warmI;
 
-    renderer.render(scene, camera); dirty = false;
+    renderer.render(scene, camera); dirty = false; lastDraw = now;
     if (stallBtn) {   // anchor the focusable stall label to the 3D stall
       proj.copy(stallPos).project(camera);
       const sx = (proj.x * .5 + .5) * Lo.w, sy = (-proj.y * .5 + .5) * Lo.h, vis = proj.z < 1 && sx > 8 && sx < Lo.w - 8 && sy > 8 && sy < Lo.h - 8;
       onStall && onStall(sx, sy, vis);
     }
+    if (!reduce || mix !== mixTarget) raf = requestAnimationFrame(frame);
   }
-  function start() { cancelAnimationFrame(raf); last = performance.now(); raf = requestAnimationFrame(frame); }
-  document.addEventListener('visibilitychange', () => document.hidden ? cancelAnimationFrame(raf) : start());
+  document.addEventListener('visibilitychange', () => { if (document.hidden) { cancelAnimationFrame(raf); raf = 0; } else poke(); });   // nothing renders in a hidden tab
   new ResizeObserver(layout).observe(canvas);
-  layout(); start();
+  ready = true; layout();
 
   return {
-    setTheme(t) { mixTarget = t === 'dark' ? 1 : 0; dirty = true; },
-    setAccent(hex) { mBody.color.set(hex); dirty = true; },
-    setReduced(b) { reduce = b; dirty = true; },
-    setStage(s) { stage = clamp(s, 0, 2); dirty = true; },
-    setMode(m) { if (m !== mode) { mode = m; layout(); S.init = false; } },
-    setActive(b) { active = b; dirty = true; },
+    setTheme(t) { mixTarget = t === 'dark' ? 1 : 0; poke(); },
+    setAccent(hex) { mBody.color.set(hex); poke(); },
+    setReduced(b) { reduce = b; poke(); },
+    setStatic(b) { frozen = b; if (b) stage = 0; poke(); },   // data-saver: one still frame at the base station
+    setStage(s) { s = frozen ? 0 : clamp(s, 0, 2); if (Math.abs(s - stage) > 1e-4) { stage = s; poke(); } },
+    setMode(m) { if (m !== mode) { mode = m; layout(); } },
     layout,
   };
 }

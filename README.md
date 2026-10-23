@@ -18,7 +18,7 @@ One page, no framework, no build step. Scrolling carries a cabin up the pass, st
 | Role switch | Re-orders blocks, jobs, projects and charts; deep link with `#role=qa`, `#role=systems`, `#role=web`, `#role=ai` |
 | Cable and connections | One SVG cable down the page; branch cables come from the `LINKS` list in `data.js` |
 | Charts | Inline SVG with a hidden data table each: tests, memory, first paint, CPU, releases, altitude |
-| 3D scene | three.js: peaks, pylons, lodges, cabin, kids in the snow, a momo stall. Hero first, then a small picture-in-picture on wide screens |
+| 3D scene | three.js: peaks, pylons, lodges, cabin, kids in the snow, a momo stall. Full screen behind the whole page; every section is a frosted-glass panel the ride shows through. Renders only while something moves (idle ambient at ~30 fps, paused when nothing is on screen or the tab is hidden) |
 | Themes | Light by default, dark toggle (saved in `localStorage`), reduced-motion and no-JS paths |
 
 The page is complete HTML without JavaScript; everything in `main.js` and `scene.js` is enhancement.
