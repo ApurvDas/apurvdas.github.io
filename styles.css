@@ -380,11 +380,10 @@ table.sr { display: block; max-width: 1px; }
 .mochi.hi .mochi-tip { opacity: 1; scale: 1; }
 @media (min-width: 700px) { :root { --mw: 76px; --mh: 67px; } .mochi { --k: 17px; } }
 @media (min-width: 1100px) {
-  .mochi { --k: 0px; }
-  .mochi[data-at="0"] { --y: min(58%, calc(100% - 230px)); }
-  .mochi[data-at="1"] { --x: calc(100% - 140px); --y: calc(var(--bar) + 4px); --a: 180; --tx: 0px; --ty: calc(var(--mh) + 18px); }
+  .mochi { --k: 0px; --n: 2; }   /* right edge only; the upside-down peek from under the bar read poorly, so it's gone */
+  .mochi[data-at="0"] { --y: min(58%, calc(100% - 230px)); } .mochi[data-at="1"] { --y: 30%; }   /* 84% would sit on the altitude dock */
 }
 @media (min-width: 1300px) {
-  .mochi { --n: 4; }
-  .mochi[data-at="3"] { --a: 0; --x: calc((clamp(24px, 3.4vw, 64px) * 2 + min(900px, 100% - clamp(24px, 3.4vw, 64px) - 340px) + 100% - 320px) / 2); --y: 100%; --tx: 0px; --ty: calc(var(--mh) * -1 - 18px); }
+  .mochi { --n: 3; }
+  .mochi[data-at="1"] { --a: 0; --x: calc((clamp(24px, 3.4vw, 64px) * 2 + min(900px, 100% - clamp(24px, 3.4vw, 64px) - 340px) + 100% - 320px) / 2); --y: 100%; --tx: 0px; --ty: calc(var(--mh) * -1 - 18px); }
 }
