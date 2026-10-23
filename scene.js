@@ -15,7 +15,9 @@ export function createScene({ canvas, stallBtn, onStall }) {
   const FRAME = 1000 / 60;
   let raf = 0, last = 0, lastAct = 0, nextDraw = 0, settled = false, ready = false, clock = 0, distS = 68;
 
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
+  // adaptive render scale: drop the internal resolution while frames run under 60
+  let q = 1, ft = FRAME, prevDraw = 0, pace = FRAME, chained = false;   // pace: 60 fps, or 30 on GPUs that can't hold 60 even at the lowest scale
   renderer.setClearColor(0x000000, 0);
   const scene = new THREE.Scene();
   scene.fog = new THREE.Fog(0xe8eef4, 45, 260);
@@ -474,6 +476,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
     dir.color.copy(cur.dirC); dir.intensity = n.dirI; dir.position.set(n.dx, n.dy, n.dz);
     lakeMat && lakeMat.color.set('#8fb4c9').lerp(new THREE.Color('#27406a'), k);
     mWin.color.copy(cur.win); glow.intensity = n.glow; warmI = n.warm;
+    glow.visible = n.glow > .01; warm.visible = n.warm > .01;   // unlit point lights still cost every pixel; leave them out by day
     stars.material.opacity = n.stars * .85; stars.visible = n.stars > .01;
     moonMat.opacity = n.moon; haloMat.opacity = n.moon * .1; moon.visible = halo.visible = n.moon > .01 && moonOK;
     dirty = true;
@@ -482,11 +485,14 @@ export function createScene({ canvas, stallBtn, onStall }) {
 
   /* ---------- layout ---------- */
   const Lo = { dist: 68, sx: 0, up: 0, mdx: 0, mdy: 0, w: 1, h: 1 };
+  function setRes() {   // drawing-buffer size only; renders on every scrolling frame, so cap at 1.25x and scale by q
+    renderer.setPixelRatio(Math.min(devicePixelRatio || 1, Lo.w < 700 ? 1 : 1.25) * q);
+    renderer.setSize(Lo.w, Lo.h, false);
+  }
   function layout() {
     const w = Math.max(1, canvas.clientWidth), h = Math.max(1, canvas.clientHeight), a = w / h;
     Lo.w = w; Lo.h = h;
-    renderer.setPixelRatio(Math.min(devicePixelRatio || 1, w < 700 ? 1 : 1.5));   // the scene now renders on every scrolling frame
-    renderer.setSize(w, h, false); camera.aspect = a; camera.updateProjectionMatrix();
+    setRes(); camera.aspect = a; camera.updateProjectionMatrix();
     const t = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)), narrow = 1.34 * (.45 + .55 * a);
     if (mode === 'hero') {
       Lo.dist = 68 * (a >= 1 ? 1 + Math.max(0, 1.6 - a) * .25 : narrow);   // closer on narrow screens (still clear of the text above)
@@ -512,7 +518,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
   const proj = new THREE.Vector3();
 
   function poke() { dirty = true; lastAct = performance.now(); wake(); }
-  function wake() { if (ready && !raf && !document.hidden) { last = performance.now(); raf = requestAnimationFrame(frame); } }
+  function wake() { if (ready && !raf && !document.hidden) { last = performance.now(); chained = false; raf = requestAnimationFrame(frame); } }
   // flags/steam live near the top station, the kids at the base: is any of that in the frame?
   const ambientInView = () => { const hw = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * distS * camera.aspect + 8; return (S.cx + hw > -68 && S.cx - hw < -46) || (S.cx + hw > 94 && S.cx - hw < 166); };
 
@@ -521,7 +527,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
     const calm = settled && !dirty && mix === mixTarget && now - lastAct > 1000;
     if (calm && (reduce || !ambientInView())) return;                            // nothing moves: stop until poke()
     if (now < nextDraw - 1) { raf = requestAnimationFrame(frame); return; }      // 60 fps pacing on faster screens
-    nextDraw = Math.max(nextDraw, now - FRAME / 2) + FRAME;                      // stay on the 60 Hz grid; after a pause, resync
+    nextDraw = Math.max(nextDraw, now - pace / 2) + pace;                      // stay on the 60 Hz grid; after a pause, resync
     const dt = Math.min(.05, Math.max(.001, (now - last) / 1000)); last = now;
     if (mix !== mixTarget) { mix = mix < mixTarget ? Math.min(mixTarget, mix + dt / .4) : Math.max(mixTarget, mix - dt / .4); applyTheme(); }
     const target = uOfStage(reduce ? Math.round(stage) : stage);
@@ -558,16 +564,30 @@ export function createScene({ canvas, stallBtn, onStall }) {
     warm.position.lerp(wp, reduce ? 1 : Math.min(1, dt * 3)); warm.intensity = warmI;
 
     renderer.render(scene, camera); dirty = false;
+    const gap = now - prevDraw; prevDraw = now;
+    if (chained) {   // the loop ran without resting since the last draw, so the gap is real frame time (however slow)
+      ft += (Math.min(gap, 250) - ft) * .1;   // one hitch can't shove it too far
+      if (ft > 26 && q <= .55 && pace === FRAME) { pace = 1000 / 30; ft = pace; }   // still under ~38 fps at the lowest scale: a steady 30 beats a stutter
+      else if (ft > 18.5 && q > .55 && pace === FRAME) { q = Math.max(.55, q - .15); ft = FRAME; setRes(); }   // under ~54 fps: render fewer pixels
+      // ponytail: only steps down (once per visit); stepping back up made edge-of-60 GPUs flip sharp/soft every few seconds
+    }
     if (stallBtn) {   // anchor the focusable stall label to the 3D stall
       proj.copy(stallPos).project(camera);
       const sx = (proj.x * .5 + .5) * Lo.w, sy = (-proj.y * .5 + .5) * Lo.h, vis = proj.z < 1 && sx > 8 && sx < Lo.w - 8 && sy > 8 && sy < Lo.h - 8;
       onStall && onStall(sx, sy, vis);
     }
+    chained = true;
     if (!reduce || mix !== mixTarget) raf = requestAnimationFrame(frame);
   }
   document.addEventListener('visibilitychange', () => { if (document.hidden) { cancelAnimationFrame(raf); raf = 0; } else poke(); });   // nothing renders in a hidden tab
   new ResizeObserver(layout).observe(canvas);
   ready = true; layout();
+  if (/[?&]fps\b/.test(location.search)) {   // ?fps: a tiny readout of the scene's frame rate and render scale, for testing on real hardware
+    const hud = document.createElement('div');
+    hud.style.cssText = 'position:fixed;z-index:99;left:8px;top:64px;padding:4px 8px;border-radius:6px;background:#000c;color:#9f9;font:12px/1.3 monospace;pointer-events:none';
+    document.body.appendChild(hud);
+    setInterval(() => { hud.textContent = `${Math.round(1000 / ft)} fps · scale ${Math.round(q * 100)}% · ${canvas.width}px · ${pace === FRAME ? '60' : '30'} cap`; }, 500);
+  }
 
   return {
     setTheme(t) { mixTarget = t === 'dark' ? 1 : 0; poke(); },
