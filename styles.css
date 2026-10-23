@@ -14,7 +14,8 @@
   --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
   --gut: 16px; --rail: 40px; --bar: 56px;
   /* glass panels: the page text sits on these; the ride shows through */
-  --pane-a: 78%; --pane: color-mix(in srgb, var(--bg) var(--pane-a), transparent); --pane-blur: blur(14px) saturate(1.2);
+  /* no backdrop blur on panels: re-blurring a live WebGL scene every frame was the main scroll cost; a denser tint keeps text readable */
+  --pane-a: 84%; --pane: color-mix(in srgb, var(--bg) var(--pane-a), transparent); --pane-blur: none;
   --r-pane: 16px; --shadow-pane: 0 10px 40px rgba(22,32,46,.16); --edge: rgba(255,255,255,.5);
   --gap-b: 38svh; --gap-s: 20svh;
 }
@@ -121,7 +122,7 @@ h1 { font-size: clamp(3rem, 7.4vw, 5.5rem); font-weight: 600; line-height: 1; le
 .wrap { width: min(100% - 2 * var(--gut), 980px); margin-inline: auto; }
 .stations { position: relative; padding-left: var(--rail); }
 .stations::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: var(--rail); border-radius: 14px; border: 1px solid var(--hair2);   /* backing so the cable stays readable over the scene */
-  background: color-mix(in srgb, var(--bg) 70%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+  background: color-mix(in srgb, var(--bg) 86%, transparent); }
 .glass { position: relative; padding: clamp(20px, 3vw, 36px); border: 1px solid var(--hair2); border-radius: var(--r-pane); background: var(--pane); -webkit-backdrop-filter: var(--pane-blur); backdrop-filter: var(--pane-blur);
   box-shadow: var(--shadow-pane), inset 0 1px 0 var(--edge); transition: background-color .4s, border-color .4s; }
 .js:not(.rv-off) .glass:not(.in) { opacity: 0; transform: translateY(24px); }   /* anime.js reveals each panel; without .js everything is simply there */
@@ -301,7 +302,7 @@ body.hl .station.lit { opacity: 1; }
   html.past-hero .dock { opacity: 1; transform: none; }
 }
 @media (max-width: 699px) {
-  :root { --pane-a: 88%; --pane-blur: blur(8px) saturate(1.2); }   /* backdrop blur over WebGL is costly on weak phones */
+  :root { --pane-a: 90%; }
   .b-full { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; } .b-short { display: inline; }
   .alt-read, .switch .sw-l, .route, .hero .alt { display: none; }
   .switch { padding: 4px 6px; min-height: 40px; }
