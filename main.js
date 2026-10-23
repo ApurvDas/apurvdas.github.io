@@ -376,7 +376,7 @@ const idle = window.requestIdleCallback ? f => requestIdleCallback(f, { timeout:
 idle(async () => {
   try {
     A = await import('animejs');
-    A = { animate: A.animate, stagger: A.stagger, svg: A.svg };
+    A = { animate: A.animate, stagger: A.stagger, svg: A.svg, spring: A.createSpring };
     flushReveals();
     if (!reduce) {
       const paths = $$('#contours path'), texts = $$('#contours text');
@@ -394,3 +394,41 @@ idle(async () => {
 });
 $('.momo-3d').hidden = true;
 if (dock) dock.hidden = false;
+
+/* ============================== Mochi: peeks in while you scroll; the scroll handler only sets a flag and a timer ============================== */
+const mochi = $('#mochi');
+if (mochi) {
+  const btn = $('.mochi-btn', mochi), ears = $$('.ear', mochi), eyes = $('.eyes', mochi), pup = $('.pup', mochi), head = $('.head', mochi);
+  const calm = performance.now() + 900, off = () => btn.offsetHeight + 8;
+  let st = 'out', at = -1, dir = 1, last = scrollY, hideT = 0, tapT = 0, tok = 0;
+  const css = n => parseFloat(getComputedStyle(mochi).getPropertyValue(n)) || 0;
+  const glance = () => { const a = css('--a') * Math.PI / 180; A.animate(pup, { translateX: dir * Math.sin(a) * 1.3, translateY: dir * Math.cos(a) * 1.5, duration: 180, ease: 'outQuad' }); };
+  const peek = () => {
+    if (!A) return;
+    tok++;
+    if (st === 'out') {
+      at = reduce ? 0 : (at + 1) % (css('--n') || 3); mochi.dataset.at = at; mochi.classList.add('on'); st = 'in';
+      if (reduce) return void A.animate(btn, { opacity: [0, 1], translateY: css('--k'), duration: 200, ease: 'outQuad' });
+      A.animate(btn, { opacity: 1, translateY: [off(), css('--k')], ease: A.spring({ duration: 520, bounce: .28 }) });
+      ears.forEach((e, i) => A.animate(e, { rotate: [0, i ? 11 : -11, 0], duration: 360, delay: 260, ease: 'outQuad' }));
+      A.animate(eyes, { scaleY: [1, .1, 1], duration: 170, delay: 640, ease: 'inOutQuad' });
+      glance();
+    } else { st = 'in'; A.animate(btn, reduce ? { opacity: 1, duration: 150 } : { translateY: css('--k'), ease: A.spring({ duration: 420, bounce: .2 }) }); }
+  };
+  const duck = () => {
+    if (mochi.classList.contains('hi')) return void (hideT = setTimeout(duck, 900));
+    const t = tok; st = 'ducking';
+    const done = () => { if (t === tok && st === 'ducking') { st = 'out'; mochi.classList.remove('on'); } };
+    A.animate(btn, reduce ? { opacity: 0, duration: 200, ease: 'outQuad', onComplete: done } : { translateY: off(), duration: 250, ease: 'inCubic', onComplete: done });
+  };
+  addEventListener('scroll', () => {
+    if (performance.now() < calm || Math.abs(scrollY - last) < 4) return;
+    const d = scrollY > last ? 1 : -1; last = scrollY;
+    if (d !== dir) { dir = d; if (A && st !== 'out' && !reduce) glance(); }
+    clearTimeout(hideT); hideT = setTimeout(duck, 2100);
+    if (st !== 'in') peek();
+  }, { passive: true });
+  const hi = on => { mochi.classList.toggle('hi', on); if (A && !reduce) A.animate(head, { rotate: on ? -9 : 0, duration: on ? 260 : 200, ease: on ? 'outBack' : 'outQuad' }); };
+  for (const [ev, on] of [['pointerenter', 1], ['pointerleave', 0], ['focusin', 1], ['focusout', 0]]) mochi.addEventListener(ev, () => hi(on));
+  btn.addEventListener('click', () => { hi(true); clearTimeout(tapT); tapT = setTimeout(() => !btn.matches(':hover, :focus-visible') && hi(false), 1600); });
+}
