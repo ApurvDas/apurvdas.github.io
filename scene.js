@@ -18,6 +18,8 @@ export function createScene({ canvas, stallBtn, onStall }) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
   // adaptive render scale: drop the internal resolution while frames run under 60
   let q = 1, ft = FRAME, prevDraw = 0, pace = FRAME, chained = false;   // pace: 60 fps, or 30 on GPUs that can't hold 60 even at the lowest scale
+  let scale = 1;   // the scale actually rendered: q while moving, full resolution once the view rests
+  const Q_MIN = .7;
   renderer.setClearColor(0x000000, 0);
   const scene = new THREE.Scene();
   scene.fog = new THREE.Fog(0xe8eef4, 45, 260);
@@ -486,7 +488,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
   /* ---------- layout ---------- */
   const Lo = { dist: 68, sx: 0, up: 0, mdx: 0, mdy: 0, w: 1, h: 1 };
   function setRes() {   // drawing-buffer size only; renders on every scrolling frame, so cap at 1.25x and scale by q
-    renderer.setPixelRatio(Math.min(devicePixelRatio || 1, Lo.w < 700 ? 1 : 1.25) * q);
+    renderer.setPixelRatio(Math.min(devicePixelRatio || 1, Lo.w < 700 ? 1 : 1.25) * scale);
     renderer.setSize(Lo.w, Lo.h, false);
   }
   function layout() {
@@ -525,9 +527,12 @@ export function createScene({ canvas, stallBtn, onStall }) {
   function frame(now) {
     raf = 0;
     const calm = settled && !dirty && mix === mixTarget && now - lastAct > 1000;
-    if (calm && (reduce || !ambientInView())) return;                            // nothing moves: stop until poke()
+    if (calm && (reduce || !ambientInView()) && scale === 1) return;             // nothing moves: stop until poke() (after one sharp frame)
+    const want = calm ? 1 : q;                                                 // at rest the view is what people look at: always full resolution
+    if (want !== scale) { scale = want; setRes(); }
+    const step = calm && q < 1 ? 1000 / 30 : pace;                             // a weak GPU idles the ambient motion at 30 fps to afford it
     if (now < nextDraw - 1) { raf = requestAnimationFrame(frame); return; }      // 60 fps pacing on faster screens
-    nextDraw = Math.max(nextDraw, now - pace / 2) + pace;                      // stay on the 60 Hz grid; after a pause, resync
+    nextDraw = Math.max(nextDraw, now - step / 2) + step;                      // stay on the grid; after a pause, resync
     const dt = Math.min(.05, Math.max(.001, (now - last) / 1000)); last = now;
     if (mix !== mixTarget) { mix = mix < mixTarget ? Math.min(mixTarget, mix + dt / .4) : Math.max(mixTarget, mix - dt / .4); applyTheme(); }
     const target = uOfStage(reduce ? Math.round(stage) : stage);
@@ -565,10 +570,10 @@ export function createScene({ canvas, stallBtn, onStall }) {
 
     renderer.render(scene, camera); dirty = false;
     const gap = now - prevDraw; prevDraw = now;
-    if (chained) {   // the loop ran without resting since the last draw, so the gap is real frame time (however slow)
+    if (chained && !calm) {   // moving frames only (the loop ran without resting, so the gap is real frame time, however slow)
       ft += (Math.min(gap, 250) - ft) * .1;   // one hitch can't shove it too far
-      if (ft > 26 && q <= .55 && pace === FRAME) { pace = 1000 / 30; ft = pace; }   // still under ~38 fps at the lowest scale: a steady 30 beats a stutter
-      else if (ft > 18.5 && q > .55 && pace === FRAME) { q = Math.max(.55, q - .15); ft = FRAME; setRes(); }   // under ~54 fps: render fewer pixels
+      if (ft > 26 && q <= Q_MIN && pace === FRAME) { pace = 1000 / 30; ft = pace; }   // still under ~38 fps at the lowest scale: a steady 30 beats a stutter
+      else if (ft > 18.5 && q > Q_MIN && pace === FRAME) { q = Math.max(Q_MIN, q - .15); ft = FRAME; scale = q; setRes(); }   // under ~54 fps: render fewer pixels while moving
       // ponytail: only steps down (once per visit); stepping back up made edge-of-60 GPUs flip sharp/soft every few seconds
     }
     if (stallBtn) {   // anchor the focusable stall label to the 3D stall
@@ -586,7 +591,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
     const hud = document.createElement('div');
     hud.style.cssText = 'position:fixed;z-index:99;left:8px;top:64px;padding:4px 8px;border-radius:6px;background:#000c;color:#9f9;font:12px/1.3 monospace;pointer-events:none';
     document.body.appendChild(hud);
-    setInterval(() => { hud.textContent = `${Math.round(1000 / ft)} fps · scale ${Math.round(q * 100)}% · ${canvas.width}px · ${pace === FRAME ? '60' : '30'} cap`; }, 500);
+    setInterval(() => { hud.textContent = `${Math.round(1000 / ft)} fps · moving ${Math.round(q * 100)}% · now ${Math.round(scale * 100)}% · ${canvas.width}px · ${pace === FRAME ? '60' : '30'} cap`; }, 500);
   }
 
   return {
