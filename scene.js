@@ -10,8 +10,10 @@ export function createScene({ canvas, stallBtn, onStall }) {
   const root = document.documentElement;
   let reduce = false, frozen = false, dirty = true, mode = 'hero', moonOK = true;
   // loop state: render while anything moves; ~1 s after the last change only slow ambient things (flags, steam, kids) keep
-  // going, at ~30 fps and only if they are on screen; otherwise the loop stops until something pokes it.
-  let raf = 0, last = 0, lastAct = 0, lastDraw = 0, settled = false, ready = false, clock = 0, distS = 68;
+  // going, and only if they are on screen; otherwise the loop stops until something pokes it.
+  // Everything is paced at a steady 60 fps: every frame on a 60 Hz screen, every other frame or so on 120/144 Hz ones.
+  const FRAME = 1000 / 60;
+  let raf = 0, last = 0, lastAct = 0, nextDraw = 0, settled = false, ready = false, clock = 0, distS = 68;
 
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
   renderer.setClearColor(0x000000, 0);
@@ -517,10 +519,9 @@ export function createScene({ canvas, stallBtn, onStall }) {
   function frame(now) {
     raf = 0;
     const calm = settled && !dirty && mix === mixTarget && now - lastAct > 1000;
-    if (calm) {
-      if (reduce || !ambientInView()) return;                                    // nothing moves: stop until poke()
-      if (now - lastDraw < 30) { raf = requestAnimationFrame(frame); return; }   // idle ambient: ~30 fps
-    }
+    if (calm && (reduce || !ambientInView())) return;                            // nothing moves: stop until poke()
+    if (now < nextDraw - 1) { raf = requestAnimationFrame(frame); return; }      // 60 fps pacing on faster screens
+    nextDraw = Math.max(nextDraw, now - FRAME / 2) + FRAME;                      // stay on the 60 Hz grid; after a pause, resync
     const dt = Math.min(.05, Math.max(.001, (now - last) / 1000)); last = now;
     if (mix !== mixTarget) { mix = mix < mixTarget ? Math.min(mixTarget, mix + dt / .4) : Math.max(mixTarget, mix - dt / .4); applyTheme(); }
     const target = uOfStage(reduce ? Math.round(stage) : stage);
@@ -556,7 +557,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
     const wp = wx === SX ? stallPos : new THREE.Vector3(wx, park[wx === BX ? 'base' : wx === MX ? 'mid' : 'top'].y0 + 3, 2.5);
     warm.position.lerp(wp, reduce ? 1 : Math.min(1, dt * 3)); warm.intensity = warmI;
 
-    renderer.render(scene, camera); dirty = false; lastDraw = now;
+    renderer.render(scene, camera); dirty = false;
     if (stallBtn) {   // anchor the focusable stall label to the 3D stall
       proj.copy(stallPos).project(camera);
       const sx = (proj.x * .5 + .5) * Lo.w, sy = (-proj.y * .5 + .5) * Lo.h, vis = proj.z < 1 && sx > 8 && sx < Lo.w - 8 && sy > 8 && sy < Lo.h - 8;
