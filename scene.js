@@ -24,17 +24,19 @@ export function createScene({ canvas, stallBtn, onStall }) {
   let tier = TIERS.includes(tierQS) ? tierQS : weakGPU ? 'low' : (innerWidth < 700 || matchMedia('(pointer: coarse)').matches) ? 'mid' : 'high';
   const pinned = TIERS.includes(tierQS), startTier = tier, atLeast = t => TIERS.indexOf(tier) >= TIERS.indexOf(t);
   // adaptive render scale: drop the internal resolution while frames run under 60
-  let q = 1, ft = FRAME, prevDraw = 0, pace = FRAME, chained = false, grace = 30;   // pace: 60 fps, or 30 on GPUs that can't hold 60 even at the lowest scale; grace: frames ignored after start / a tier step (shader compiles)
+  let q = 1, ft = FRAME, prevDraw = 0, pace = FRAME, chained = false, grace = 60, slow = 0;   // pace: 60 fps, or 30 on GPUs that can't hold 60 even at the lowest scale; grace: frames ignored after start / a tier step (shader compiles)
   let scale = 1;   // the scale actually rendered: q while moving, full resolution once the view rests
   const Q_MIN = .7;
   renderer.setClearColor(0x000000, 0);
   renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.NoToneMapping;   // flat painted colours: no tone curve
   // toon ramp: shadow / three lit bands with soft edges (a 64-texel ramp read with linear filtering, so the band edges don't alias)
-  const grad = (() => {
-    const S = (x, a, b) => sm(a, b, x), d = new Uint8Array(64);
-    for (let i = 0; i < 64; i++) { const nl = (i + .5) / 32 - 1; d[i] = 255 * (.55 * S(nl, .02, .1) + .23 * S(nl, .3, .4) + .13 * S(nl, .55, .65) + .09 * S(nl, .78, .88)); }
+  const ramp = steps => {   // steps: [weight, from, to] smoothsteps of N.L that add up to 1
+    const d = new Uint8Array(64);
+    for (let i = 0; i < 64; i++) { const nl = (i + .5) / 32 - 1; d[i] = 255 * steps.reduce((a, [w, lo, hi]) => a + w * sm(lo, hi, nl), 0); }
     const t = new THREE.DataTexture(d, 64, 1, THREE.RedFormat); t.minFilter = t.magFilter = THREE.LinearFilter; t.generateMipmaps = false; t.needsUpdate = true; return t;
-  })();
+  };
+  const grad = ramp([[.55, .02, .1], [.23, .3, .4], [.13, .55, .65], [.09, .78, .88]]);
+  const gradT = ramp([[.42, .0, .12], [.2, .46, .52], [.2, .58, .64], [.18, .70, .76]]);   // near terrain: the bands fall where its slopes actually sit (N.L ~ .4-.8), so they read as painted contours
   const toon = o => new THREE.MeshToonMaterial({ gradientMap: grad, ...o });
   const scene = new THREE.Scene();
   scene.fog = new THREE.Fog(0xe8eef4, 45, 260);
@@ -69,8 +71,10 @@ export function createScene({ canvas, stallBtn, onStall }) {
   const MEAD_A = new THREE.Color('#7fae5a'), MEAD_B = new THREE.Color('#a8c66c'), MEAD_D = new THREE.Color('#5f9150'), DRY = new THREE.Color('#bcb274'), BROWN = new THREE.Color('#8c7656');
   const alt = (x, y, z) => y + (fbm(x * .045, z * .06) - .5) * 15;   // the altitude the colours see: world height with a patchy wobble
   const greenAt = (x, z) => 1 - sm(-2, 7, alt(x, nearH(x, z), z));
-  const HAZE = new THREE.Color('#c3d0ec'), kidsPatch = (x, z) => 1 - sm(.5, 1, Math.hypot((x + 59) / 8.5, (z - 3.6) / 4.2));   // a snowy patch where the kids play
-  const cc = new THREE.Color();
+  const HAZE = new THREE.Color('#c3d0ec'), PX0 = -71, PX1 = -47, PZ0 = -3, PZ1 = 10;
+  // leftover snow where the kids play: an irregular patch (negative = outside), drawn as a crisp-edged decal below
+  const patchField = (x, z) => 1 - Math.hypot((x + 59) / 7.6, (z - 3.6) / 3.8) + (fbm(x * .33 + 11, z * .5) - .5) * .45;
+  const cc = new THREE.Color(), WARM = new THREE.Color('#e6d27c'), COOL = new THREE.Color('#4a7f8c');
   function paint(c, x, y, z, ny) {
     const a = alt(x, y, z), n1 = fbm(x * .11 + 3, z * .13);
     c.copy(MEAD_A).lerp(MEAD_B, sm(.3, .75, n1)).lerp(MEAD_D, sm(.55, .92, 1 - ny) * .8);
@@ -79,7 +83,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
     c.lerp(SNOW, sm(0, 1, (a - 22) / 12 + (ny - .62) * 1.3));
     return c;
   }
-  function terrain({ x0, x1, z0, z1, nx, nz, h, seed, jit = .3, hz = 0, patch }) {
+  function terrain({ x0, x1, z0, z1, nx, nz, h, seed, jit = .3, hz = 0, near }) {
     const rnd = mulberry(seed), dx = (x1 - x0) / nx, dz = (z1 - z0) / nz, P = [];
     for (let j = 0; j <= nz; j++) for (let i = 0; i <= nx; i++) {
       const edge = i === 0 || j === 0 || i === nx || j === nz;
@@ -97,13 +101,13 @@ export function createScene({ canvas, stallBtn, onStall }) {
     for (let v = 0; v < P.length / 3; v++) {
       const x = P[v * 3], y = P[v * 3 + 1], z = P[v * 3 + 2];
       paint(cc, x, y, z, n.getY(v));
-      if (patch) cc.lerp(SNOW, patch(x, z));
+      if (near) { const nl = (n.getX(v) * -.70 + n.getY(v) * .54 + n.getZ(v) * .49); cc.lerp(WARM, sm(.45, .95, nl) * .2).lerp(COOL, sm(.3, -.2, nl) * .26); }   // painted shade shift: warmer toward the light, cooler away
       cc.lerp(HAZE, hz);   // atmospheric perspective: every range further back is lighter and bluer
       col.set([cc.r, cc.g, cc.b], v * 3);
     }
     g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-    const m = toon({ vertexColors: true });
-    tintMats.push(m); const mesh = new THREE.Mesh(g, m); mesh.receiveShadow = !!patch; return mesh;   // only the near layer takes shadows
+    const m = toon({ vertexColors: true, ...(near && { gradientMap: gradT }) });
+    tintMats.push(m); const mesh = new THREE.Mesh(g, m); mesh.receiveShadow = !!near; return mesh;   // only the near layer takes shadows
   }
   const range = (seed, k, base, A, z0, z1) => (x, z) => {
     const tz = (z1 - z) / (z1 - z0);
@@ -124,8 +128,26 @@ export function createScene({ canvas, stallBtn, onStall }) {
     terrain({ x0: -300, x1: 330, z0: -160, z1: -110, nx: 110 * dens | 0, nz: 6, h: range(1.3, .75, 18, 64, -160, -110), seed: 11, hz: .6 }),
     terrain({ x0: -280, x1: 310, z0: -102, z1: -62, nx: 104 * dens | 0, nz: 6, h: range(4.1, .8, 12, 54, -102, -62), seed: 22, hz: .42 }),
     terrain({ x0: -250, x1: 290, z0: -58, z1: -26, nx: 96 * dens | 0, nz: 6, h: range(7.7, .85, 6, 44, -58, -26), seed: 33, hz: .22 }),
-    terrain({ x0: -170, x1: 260, z0: -24, z1: 40, nx: 190 * dens | 0, nz: 22 * dens | 0, h: nearH, seed: 44, jit: .25, patch: kidsPatch })
+    terrain({ x0: -170, x1: 260, z0: -24, z1: 40, nx: 190 * dens | 0, nz: 22 * dens | 0, h: nearH, seed: 44, jit: .25, near: true })
   );
+  { // the kids' snow patch: a thin mesh draped on the meadow, textured from patchField with a crisp irregular edge and a few cool/warm tone patches
+    const W = 480, H = 260, c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d'), im = g.createImageData(W, H);
+    for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+      const x = PX0 + (i + .5) / W * (PX1 - PX0), z = PZ0 + (j + .5) / H * (PZ1 - PZ0), f = patchField(x, z), o = (j * W + i) * 4;
+      if (f < 0) continue;   // outside the patch: leave transparent (and skip the tone noise)
+      const t = fbm(x * .9 + 5, z * 1.3), e = f < .035 ? 1 : 0;   // a thin darker rim reads as the melting edge
+      const a = sm(0, .02, f), cool = sm(.35, .7, t) * .55 + e * .35;
+      im.data[o] = 247 - 40 * cool; im.data[o + 1] = 248 - 26 * cool; im.data[o + 2] = 252 - 10 * cool; im.data[o + 3] = 255 * a;
+    }
+    g.putImageData(im, 0, 0);
+    const tx = new THREE.CanvasTexture(c); tx.colorSpace = THREE.SRGBColorSpace; tx.anisotropy = 4;
+    const pg = new THREE.PlaneGeometry(PX1 - PX0, PZ1 - PZ0, 48, 26).rotateX(-Math.PI / 2), pp = pg.attributes.position, cx = (PX0 + PX1) / 2, cz = (PZ0 + PZ1) / 2;
+    for (let i = 0; i < pp.count; i++) { const x = pp.getX(i) + cx, z = pp.getZ(i) + cz; pp.setXYZ(i, x, nearH(x, z) + .07, z); }
+    pg.computeVertexNormals();
+    const m = toon({ map: tx, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
+    m.userData.dim = .62; tintMats.push(m);   // at night it would glow next to the dark meadow, so it is dimmed
+    const patch = new THREE.Mesh(pg, m); patch.receiveShadow = true; scene.add(patch);
+  }
   { // Tsomgo Lake: one flat disc
     const lake = new THREE.Mesh(new THREE.CircleGeometry(1, 36).rotateX(-Math.PI / 2), toon({ color: '#86bccb', transparent: true, opacity: .92 }));
     lake.scale.set(LK.rx * .92, 1, LK.rz * .92); lake.position.set(LK.x, lakeY + .1, LK.z); scene.add(lake); lakeMat = lake.material;
@@ -426,7 +448,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
     const spotsG = [], flw = [];
     for (let i = 0; spotsG.length < 1800 && i < 12000; i++) {
       const x = GRASS_X0 + rnd() * (GRASS_X1 - GRASS_X0), z = -3 + rnd() * 24;
-      if (clear(x, z) || kidsPatch(x, z) > .12 || greenAt(x, z) < .55 || Math.abs(z + 2) < 1.6 && Math.abs(x - BX) < 10) continue;
+      if (clear(x, z) || patchField(x, z) > -.2 || greenAt(x, z) < .55 || Math.abs(z + 2) < 1.6 && Math.abs(x - BX) < 10) continue;
       spotsG.push([x, nearH(x, z) - .05, z, .7 + rnd() * .7]);
     }
     const gi = new THREE.InstancedMesh(gg, gm, spotsG.length); gi.frustumCulled = true;
@@ -573,13 +595,13 @@ export function createScene({ canvas, stallBtn, onStall }) {
   /* ---------- gentle snowfall around Tsomgo Lake and Nathu La (high tier; still with reduced motion). The fall is in the vertex shader. ---------- */
   const snowT = { value: 0 };
   const snowfall = (() => {
-    const rnd = mulberry(33), N = 360, H = 32, pos = [], aux = [];
+    const rnd = mulberry(33), N = 150, H = 32, pos = [], aux = [];
     [[LK.x, lakeY - 2], [TX + 6, gY(TX) - 6]].forEach(([cx, y0]) => { for (let i = 0; i < N; i++) { pos.push(cx + (rnd() - .5) * 70, rnd() * H, -14 + rnd() * 38); aux.push(y0, rnd()); } });
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('aux', new THREE.Float32BufferAttribute(aux, 2));
-    const m = new THREE.PointsMaterial({ color: '#ffffff', size: 2.4, sizeAttenuation: false, transparent: true, opacity: .85, depthWrite: false, fog: false });
+    const m = new THREE.PointsMaterial({ color: '#ffffff', size: 3.6, sizeAttenuation: false, transparent: true, opacity: .8, depthWrite: false, fog: false });
     m.onBeforeCompile = sh => {
       sh.uniforms.uT = snowT;
-      sh.fragmentShader = sh.fragmentShader.replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>' + String.fromCharCode(10) + 'if (length(gl_PointCoord - .5) > .5) discard;');   // round flakes
+      sh.fragmentShader = sh.fragmentShader.replace('#include <alphatest_fragment>', '#include <alphatest_fragment>' + String.fromCharCode(10) + 'diffuseColor.a *= 1.0 - smoothstep(.12, .5, length(gl_PointCoord - .5));');   // round, soft-edged flakes
       sh.vertexShader = 'uniform float uT; attribute vec2 aux;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n transformed.y = aux.x + ' + H.toFixed(1) + ' - mod(position.y + uT * (1.6 + aux.y * 1.2), ' + H.toFixed(1) + ');\n transformed.x += sin(uT * .8 + aux.y * 40.) * .8;');
     };
     const p = new THREE.Points(g, m); p.frustumCulled = false; scene.add(p); return p;   // the shader moves the points, so the raw bounding sphere would be wrong
@@ -587,21 +609,24 @@ export function createScene({ canvas, stallBtn, onStall }) {
 
   /* ---------- clouds: big soft cumulus billboards, canvas-painted (warm lit tops, cool undersides, flat bottoms) ---------- */
   const cloudTex = [3, 17, 29].map(seed => {
-    const rnd = mulberry(seed), c = document.createElement('canvas'); c.width = 512; c.height = 256; const g = c.getContext('2d'), yb = 196, n = 8 + (seed % 3);
+    const rnd = mulberry(seed), c = document.createElement('canvas'); c.width = 1024; c.height = 512; const g = c.getContext('2d'); g.scale(2, 2);   // drawn in 512x256 units at 2x for crisp edges
+    const yb = 196, n = 8 + (seed % 3);
     const puffs = Array.from({ length: n }, (_, i) => { const t = (i + .5) / n, r = 34 + 62 * Math.sin(Math.PI * t) * (.7 + rnd() * .5); return { x: 50 + 412 * t + (rnd() - .5) * 20, y: yb - r * (.55 + rnd() * .25), r }; });
-    const blob = (x, y, r, rgb, a) => { const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, `rgba(${rgb},${a})`); gr.addColorStop(.9, `rgba(${rgb},${a})`); gr.addColorStop(1, `rgba(${rgb},0)`); g.fillStyle = gr; g.fillRect(x - r, y - r, 2 * r, 2 * r); };
-    puffs.forEach(p => blob(p.x, p.y, p.r, '150,168,208', 1));                       // cool blue-grey body, shows at the undersides
-    puffs.forEach(p => blob(p.x - p.r * .1, p.y - p.r * .22, p.r * .84, '255,248,236', 1));   // warm-lit tops, offset toward the light
-    g.globalCompositeOperation = 'destination-out'; const fl = g.createLinearGradient(0, yb - 4, 0, yb + 26); fl.addColorStop(0, 'rgba(0,0,0,0)'); fl.addColorStop(1, 'rgba(0,0,0,1)'); g.fillStyle = fl; g.fillRect(0, yb - 4, 512, 256);   // soft flat bottom
-    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+    const blob = (x, y, r, rgb) => { const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, `rgba(${rgb},1)`); gr.addColorStop(.96, `rgba(${rgb},1)`); gr.addColorStop(1, `rgba(${rgb},0)`); g.fillStyle = gr; g.fillRect(x - r, y - r, 2 * r, 2 * r); };
+    puffs.forEach(p => blob(p.x, p.y, p.r, '203,213,233'));                                    // soft blue-grey body: only a thin rim of it shows under the lit tops
+    puffs.forEach(p => blob(p.x - p.r * .05, p.y - p.r * .11, p.r * .94, '255,250,241'));        // warm-lit tops
+    g.globalCompositeOperation = 'destination-out'; const fl = g.createLinearGradient(0, yb - 2, 0, yb + 12); fl.addColorStop(0, 'rgba(0,0,0,0)'); fl.addColorStop(1, 'rgba(0,0,0,1)'); g.fillStyle = fl; g.fillRect(0, yb - 2, 512, 256);   // flat bottom
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
   });
   const CLOUD_N = { low: 3, mid: 8, high: 12 }, CLOUD_W = 260;   // 3 parallax depths behind the mountains
   const clouds = (() => {
     const rnd = mulberry(77), grp = new THREE.Group(), L3 = [[-190, 95, 40], [-250, 120, 52], [-330, 150, 66]], out = [];
     for (let i = 0; i < 12; i++) {
-      const l = i % 3, [z, w, yy] = L3[l];   // layers alternate, so the first four already span the depths
+      const l = i % 3, [z, w] = L3[l];   // layers alternate, so the first four already span the depths
       const m = new THREE.Mesh(new THREE.PlaneGeometry(w, w / 2), new THREE.MeshBasicMaterial({ map: cloudTex[i % 3], transparent: true, depthWrite: false, fog: false }));
-      m.position.z = z; const o = { m, x0: (rnd() * 2 - 1) * CLOUD_W, y: yy * (.9 + rnd() * .9) - 4, v: (.5 + rnd() * .5) * (3 - l) * .45, l }; m.scale.setScalar(.85 + rnd() * .3);
+      const sc = .85 + rnd() * .3, d = 68 + Math.abs(z), half = .325 * d, ch = w / 4 * sc, off = d * .1 - 6.8;   // the camera looks slightly down, so the view's centre line is `off` below the group at this depth
+      const ys = half * .1 + rnd() * Math.max(0, half * .74 - ch - half * .1);     // on-screen height: the whole cloud stays inside the sky band, clear of the top bar
+      m.position.z = z; const o = { m, x0: (rnd() * 2 - 1) * CLOUD_W, y: ys - off + 5, v: (.5 + rnd() * .5) * (3 - l) * .45, l }; m.scale.setScalar(sc);
       m.userData.o = o; grp.add(m); out.push(o);
     }
     scene.add(grp); return { grp, out };
@@ -626,12 +651,13 @@ export function createScene({ canvas, stallBtn, onStall }) {
     root.style.setProperty('--sky-top', '#' + cur.skyTop.getHexString()); root.style.setProperty('--sky-mid', '#' + cur.skyMid.getHexString()); root.style.setProperty('--sky-bot', '#' + cur.skyBot.getHexString());
     clouds.out.forEach(o => { o.m.material.color.copy(cur.cloud); o.m.material.opacity = n.cloudO * [1, .88, .76][o.l]; });
     scene.fog.color.copy(cur.fog);
-    tintMats.forEach(m => { m.color.copy(cur.tint); if (m.userData.base) m.color.multiply(m.userData.base); });
+    tintMats.forEach(m => { m.color.copy(cur.tint); if (m.userData.base) m.color.multiply(m.userData.base); if (m.userData.dim) m.color.multiplyScalar(1 - m.userData.dim * k); });
     mWood.color.copy(cur.wood); mDark.color.copy(cur.wood).multiply(new THREE.Color('#5a3e2a')); mRoof.color.copy(cur.wood).multiply(new THREE.Color('#8c4b3b')); mBamboo.color.copy(cur.wood).multiply(new THREE.Color('#c9a45c'));
     hemi.color.copy(cur.hemiSky); hemi.groundColor.copy(cur.hemiGnd); hemi.intensity = n.hemiI;
     dir.color.copy(cur.dirC); dir.intensity = n.dirI; dir.position.set(n.dx, n.dy, n.dz).normalize().multiplyScalar(130).add(dir.target.position); shDirty = true;
     lakeMat && lakeMat.color.set('#86bccb').lerp(new THREE.Color('#27406a'), k);
     mLine.color.set('#3d2a1e').lerp(_c.set('#0b0f1c'), k); mLineTree.color.copy(mLine.color);
+    snowfall.material.opacity = .8 - .4 * k; snowfall.material.color.set('#ffffff').lerp(_c.set('#a9b8e0'), k);   // night flakes: dimmer and bluer, so they do not read as stars
     mWin.color.copy(cur.win); glow.intensity = n.glow; warmI = n.warm;
     glow.visible = n.glow > .01; warm.visible = n.warm > .01;   // unlit point lights still cost every pixel; leave them out by day
     stars.material.opacity = n.stars * .85; stars.visible = n.stars > .01;
@@ -642,11 +668,16 @@ export function createScene({ canvas, stallBtn, onStall }) {
 
   /* ---------- layout ---------- */
   const Lo = { dist: 68, sx: 0, up: 0, mdx: 0, mdy: 0, w: 1, h: 1 };
+  const qsNum = k => parseFloat(new URLSearchParams(location.search).get(k)), SS = qsNum('pr') || 1.25, LOW_CAP = qsNum('lc') || 1.5;   // ?pr= ?lc= are test overrides
+  // per tier: high supersamples a low-DPR screen (SS x) while the view rests (moving frames stay native: 1.25x while moving was too dear for the iGPU test box) and caps at 2;
+  // mid caps at 1.5 (an iGPU at DPR 2 can stay on mid); low keeps the cheap cap
+  let resting = false;
+  const ratio = () => { const d = devicePixelRatio || 1; return tier === 'low' ? Math.min(d, Lo.w < 700 ? 1 : LOW_CAP) : tier === 'mid' ? Math.min(d, 1.5) : Math.min(2, resting ? Math.max(d, SS) : d); };
   function setRes() {   // drawing-buffer size only. mid/high render up to 2x (sharp on 1.5-2x laptops and phones); low keeps the old, cheap 1.25x / 1x cap
-    renderer.setPixelRatio(Math.min(devicePixelRatio || 1, tier === 'low' ? (Lo.w < 700 ? 1 : 1.25) : 2) * scale);
+    renderer.setPixelRatio(ratio() * scale);
     renderer.setSize(Lo.w, Lo.h, false);
   }
-  function applyTier() { setRes(); snowfall.material.size = 2.4 * renderer.getPixelRatio(); snowfall.visible = tier === 'high' && !reduce; outlines.forEach(o => { o.visible = atLeast('mid'); }); shDirty = true; counted.forEach(({ im, n, per }) => { im.count = Math.min(n[tier], im.userData.max ?? 1e9) * per; }); highOnly.forEach(m => { m.visible = tier === 'high'; }); clouds.out.forEach((o, i) => { o.m.visible = i < CLOUD_N[tier]; }); dirty = true; }
+  function applyTier() { setRes(); snowfall.material.size = 3.6 * renderer.getPixelRatio(); snowfall.visible = tier === 'high' && !reduce; outlines.forEach(o => { o.visible = atLeast('mid'); }); shDirty = true; counted.forEach(({ im, n, per }) => { im.count = Math.min(n[tier], im.userData.max ?? 1e9) * per; }); highOnly.forEach(m => { m.visible = tier === 'high'; }); clouds.out.forEach((o, i) => { o.m.visible = i < CLOUD_N[tier]; }); dirty = true; }
   function tierDown() { tier = TIERS[TIERS.indexOf(tier) - 1]; if (tier !== 'high') dir.castShadow = false; applyTier(); }   // dropping the shadow caster recompiles the lit shaders once
   function layout() {
     const w = Math.max(1, canvas.clientWidth), h = Math.max(1, canvas.clientHeight), a = w / h;
@@ -684,9 +715,9 @@ export function createScene({ canvas, stallBtn, onStall }) {
   function frame(now) {
     raf = 0;
     const calm = settled && !dirty && mix === mixTarget && now - lastAct > 1000;
-    if (calm && (reduce || !ambientInView()) && scale === 1) return;             // nothing moves: stop until poke() (after one sharp frame)
+    if (calm && (reduce || !ambientInView()) && scale === 1 && resting) return;             // nothing moves: stop until poke() (after one sharp frame)
     const want = calm ? 1 : q;                                                 // at rest the view is what people look at: always full resolution
-    if (want !== scale) { scale = want; setRes(); }
+    if (want !== scale || calm !== resting) { scale = want; resting = calm; setRes(); }
     const step = calm && q < 1 ? 1000 / 30 : pace;                             // a weak GPU idles the ambient motion at 30 fps to afford it
     if (now < nextDraw - 1) { raf = requestAnimationFrame(frame); return; }      // 60 fps pacing on faster screens
     nextDraw = Math.max(nextDraw, now - step / 2) + step;                      // stay on the grid; after a pause, resync
@@ -731,13 +762,14 @@ export function createScene({ canvas, stallBtn, onStall }) {
     renderer.render(scene, camera); dirty = false;
     const gap = now - prevDraw; prevDraw = now;
     if (chained && (!calm || step === pace)) {   // frames of an unbroken run (the gap is real frame time, however slow); resting frames at a 30 fps idle are on purpose
-      if (grace > 0) grace--;
+      if (grace > 0 || now - tReady < 4500) { grace = Math.max(0, grace - 1); ft = FRAME; slow = 0; }   // not while the page itself is still starting up (contour drawing, fonts) or right after a step
       else {
-        ft += (Math.min(gap, 250) - ft) * .1;   // one hitch can't shove it too far
-        if (ft > 18.5 && tier !== 'low' && !pinned) { tierDown(); ft = FRAME; grace = 12; }   // under ~54 fps: switch expensive features off first (also while resting at the base)
+        ft += (Math.min(gap, 60) - ft) * .1;   // one hitch can't shove it too far
+        slow = ft > 18.5 ? slow + 1 : 0;      // a step needs ~0.4 s of sustained slowness: page-load work and one-off uploads must not cost a tier
+        if (slow > 24 && tier !== 'low' && !pinned) { tierDown(); ft = FRAME; grace = 40; slow = 0; }   // under ~54 fps: switch expensive features off first (also while resting at the base)
         else if (calm) { /* resolution only drops while moving */ }
-        else if (ft > 26 && q <= Q_MIN && pace === FRAME) { pace = 1000 / 30; ft = pace; }   // still under ~38 fps at the lowest scale: a steady 30 beats a stutter
-        else if (ft > 18.5 && q > Q_MIN && pace === FRAME) { q = Math.max(Q_MIN, q - .15); ft = FRAME; scale = q; setRes(); }   // then render fewer pixels while moving
+        else if (slow > 24 && ft > 26 && q <= Q_MIN && pace === FRAME) { pace = 1000 / 30; ft = pace; slow = 0; }   // still under ~38 fps at the lowest scale: a steady 30 beats a stutter
+        else if (slow > 24 && q > Q_MIN && pace === FRAME) { q = Math.max(Q_MIN, q - .15); ft = FRAME; slow = 0; scale = q; resting = false; setRes(); }   // then render fewer pixels while moving
       }
       // ponytail: only steps down (once per visit); stepping back up made edge-of-60 GPUs flip sharp/soft every few seconds
     }
@@ -752,7 +784,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
   document.addEventListener('visibilitychange', () => { if (document.hidden) { cancelAnimationFrame(raf); raf = 0; } else poke(); });   // nothing renders in a hidden tab
   new ResizeObserver(layout).observe(canvas);
   applyTier(); renderer.compile(scene, camera);   // build the shaders now, so the first moving frames are not measured as slow
-  ready = true; layout();
+  ready = true; const tReady = performance.now(); layout();
   if (/[?&]fps\b/.test(location.search)) {   // ?fps: a tiny readout of the scene's tier, frame rate and render scale, for testing on real hardware
     const hud = document.createElement('div');
     hud.style.cssText = 'position:fixed;z-index:99;left:8px;top:64px;padding:4px 8px;border-radius:6px;background:#000c;color:#9f9;font:12px/1.3 monospace;pointer-events:none';

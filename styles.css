@@ -53,10 +53,10 @@ button { font: inherit; color: inherit; }
 .cam { position: fixed; inset: 0; z-index: 1; pointer-events: none; }
 .cam canvas { display: block; width: 100%; height: 100%; border-radius: inherit; }
 /* paper grain + a faint warm vignette over the painting: one static layer, no blend mode, so it costs the live canvas nothing */
-.cam::after { content: ""; position: absolute; inset: 0; opacity: .38; pointer-events: none;
+.cam::after { content: ""; position: absolute; inset: 0; opacity: .19; pointer-events: none;
   background: radial-gradient(ellipse 130% 110% at 50% 42%, transparent 58%, rgba(90,55,30,.14) 100%),
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .32 0 0 0 0 .22 0 0 0 0 .14 1.3 0 0 0 -.5'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E"); }
-:root[data-theme="dark"] .cam::after { opacity: .24; }
+:root[data-theme="dark"] .cam::after { opacity: .12; }
 .cam[data-mode="off"] { display: none; }   /* only when WebGL fails */
 .cam-ui { position: fixed; inset: 0; z-index: 6; pointer-events: none; }   /* the 3D stall's momo button, above the glass */
 .contours { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; color: var(--ink); transition: opacity .6s var(--out), visibility 0s; }
@@ -64,7 +64,9 @@ html.past-hero :is(.contours, .scrim) { opacity: 0; visibility: hidden; transiti
 .contours path { fill: none; stroke: var(--contour); stroke-width: 1.1; vector-effect: non-scaling-stroke; }
 .contours text { fill: var(--muted); fill-opacity: .8; font: 500 10px var(--mono); letter-spacing: .08em; }
 .scrim { position: fixed; inset: 0; z-index: 3; pointer-events: none; transition: opacity .6s var(--out), visibility 0s;
-  background: linear-gradient(90deg, color-mix(in srgb, var(--sky-bot) 86%, transparent) 0%, color-mix(in srgb, var(--sky-bot) 60%, transparent) 32%, transparent 60%); }
+  /* just a short, neutral veil behind the text column; a soft halo on the text itself (below) carries the rest of the legibility */
+  background: linear-gradient(90deg, color-mix(in srgb, var(--bg) 58%, transparent) 0%, color-mix(in srgb, var(--bg) 34%, transparent) 26%, transparent 46%); }
+.hero-in { text-shadow: 0 0 14px color-mix(in srgb, var(--bg) 80%, transparent), 0 0 3px color-mix(in srgb, var(--bg) 55%, transparent); }
 
 /* ---------- top bar ---------- */
 .bar { position: fixed; z-index: 40; top: 0; left: 0; right: 0; height: var(--bar); display: flex; align-items: center; gap: 12px; padding: 0 clamp(16px, 3vw, 36px);
@@ -325,7 +327,7 @@ body.hl .station.lit { opacity: 1; }
   .hint { left: 16px; }
   .js .role-summary:not(.open) { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
   .js .more-s { display: inline-block; margin-top: .4rem; min-height: 32px; padding: 0; border: 0; background: none; color: var(--accent); font: 500 .8125rem/1 var(--sans); cursor: pointer; }
-  .scrim { background: linear-gradient(180deg, color-mix(in srgb, var(--sky-bot) 88%, transparent) 0%, color-mix(in srgb, var(--sky-bot) 62%, transparent) 46%, transparent 72%); }
+  .scrim { background: linear-gradient(180deg, color-mix(in srgb, var(--bg) 56%, transparent) 0%, color-mix(in srgb, var(--bg) 40%, transparent) 40%, transparent 68%); }
   .momo-map .long { display: none; }
   .stats { gap: 14px 20px; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); }
   .stat dd { font-size: 2rem; }
