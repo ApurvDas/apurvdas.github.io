@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bug report samples</title>
+<meta name="description" content="Two real defects found and fixed in my own project, Project Manager, written as JIRA-style bug reports.">
+<style>
+@font-face{font-family:"Geist";src:url(../fonts/Geist-Variable.woff2) format("woff2");font-weight:100 900;font-display:swap}
+@font-face{font-family:"Geist Mono";src:url(../fonts/GeistMono-Variable.woff2) format("woff2");font-weight:100 900;font-display:swap}
+:root{--ink:#16202e;--muted:#4a5667;--bg:#f3f6f9;--card:#fff;--hair:rgba(22,32,46,.22);--hair2:rgba(22,32,46,.11);
+ --accent:#2f4a6b;--qa:#1d7157;--qa-bg:#e3f1ec;--warn-bg:#fdf1dc;--bad-bg:#fbe6e3;--bad:#8c2315;--head-bg:#e6ecf2;
+ --sans:"Geist",system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+ --mono:"Geist Mono",ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;color-scheme:light dark}
+@media (prefers-color-scheme:dark){:root{--ink:#eef2f9;--muted:#b3c0d5;--bg:#0b1226;--card:#121c38;--hair:rgba(255,255,255,.26);--hair2:rgba(255,255,255,.12);
+ --accent:#a9bfe3;--qa:#6fd3ac;--qa-bg:#10303a;--warn-bg:#3a2d10;--bad-bg:#40181a;--bad:#f5a99f;--head-bg:#18264a}}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 1rem/1.6 var(--sans);-webkit-font-smoothing:antialiased;overflow-wrap:break-word}
+a{color:var(--accent);text-underline-offset:3px;overflow-wrap:anywhere}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+h1,h2,h3,p,ul,ol,dl,dd,figure,table{margin:0}
+code,pre{font-family:var(--mono);font-size:.875em}
+code{overflow-wrap:anywhere;background:var(--hair2);padding:.05em .3em;border-radius:4px}
+pre{overflow-x:auto;background:var(--card);border:1px solid var(--hair);border-radius:8px;padding:.8rem 1rem;line-height:1.5;margin:.6rem 0}
+pre code{background:none;padding:0;overflow-wrap:normal}
+.site{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px 16px;padding:6px 16px;border-bottom:1px solid var(--hair2);background:var(--card)}
+.site .who{font:500 .75rem/1.2 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.site a{display:inline-flex;align-items:center;min-height:44px;font-weight:500;text-decoration:none}
+.site a:hover{text-decoration:underline}
+main{max-width:62rem;margin:0 auto;padding:24px 16px 56px}
+main.wide{max-width:96rem}
+.sample{border:1px solid var(--hair);border-left:5px solid var(--qa);background:var(--qa-bg);border-radius:8px;padding:.7rem 1rem;margin-bottom:1.4rem;font-weight:600}
+.sample span{font-weight:400;color:var(--muted);display:block;font-size:.9rem}
+h1{font-size:clamp(1.5rem,4.5vw,2.1rem);line-height:1.2;letter-spacing:-.02em;font-weight:600}
+.lede{color:var(--muted);margin-top:.5rem;max-width:70ch}
+h2{font-size:1.2rem;letter-spacing:-.01em;margin:2rem 0 .6rem;padding-bottom:.3rem;border-bottom:1px solid var(--hair)}
+h3{font-size:1rem;margin:1.2rem 0 .3rem}
+p+p,p+ul,p+ol,ul+p,ol+p{margin-top:.6rem}
+ul,ol{padding-left:1.3rem;margin:.4rem 0}
+li+li{margin-top:.25rem}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:.8rem 0}
+.chip{font:500 .75rem/1 var(--mono);padding:.45rem .6rem;border-radius:999px;border:1px solid var(--hair);background:var(--card)}
+.chip.ok{background:var(--qa-bg);border-color:var(--qa)}
+.chip.sev{background:var(--warn-bg)}
+.report{border:1px solid var(--hair);border-radius:12px;background:var(--card);padding:1.2rem 1.2rem 1.4rem;margin-top:1.4rem}
+.report>h2:first-child{margin-top:0;border:0;padding:0}
+.key{font:500 .8125rem/1 var(--mono);color:var(--muted);margin-bottom:.4rem}
+.fields{display:grid;grid-template-columns:11rem 1fr;gap:0;border:1px solid var(--hair);border-radius:8px;overflow:hidden;margin:.8rem 0}
+.fields dt,.fields dd{padding:.5rem .8rem;border-top:1px solid var(--hair2)}
+.fields dt:first-of-type,.fields dt:first-of-type+dd{border-top:0}
+.fields dt{font:500 .75rem/1.5 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);background:var(--head-bg)}
+.note{border-left:4px solid var(--hair);padding:.1rem 0 .1rem .9rem;color:var(--muted);margin:.7rem 0}
+.callout{border:1px solid var(--hair);background:var(--warn-bg);border-radius:8px;padding:.6rem .9rem;margin:.8rem 0;font-size:.9375rem}
+.scroll{overflow-x:auto;border:1px solid var(--hair);border-radius:8px;background:var(--card);margin:.6rem 0;max-width:100%}
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+caption{text-align:left;padding:.5rem .7rem;font-size:.8125rem;color:var(--muted)}
+th,td{padding:.45rem .7rem;text-align:left;vertical-align:top;border-top:1px solid var(--hair2)}
+thead th{background:var(--head-bg);font:500 .72rem/1.3 var(--mono);letter-spacing:.06em;text-transform:uppercase;border-top:0}
+tbody th{font-weight:600}
+td.num,th.num{font-family:var(--mono);text-align:right;white-space:nowrap}
+.tc{min-width:1180px;font-size:.8125rem}
+.tc td,.tc th{padding:.5rem .6rem}
+.tc tbody th{white-space:nowrap}
+.tc code{white-space:nowrap}
+.tc ol{padding-left:1.1rem;margin:0}
+.tag{display:inline-block;font:500 .6875rem/1 var(--mono);padding:.25rem .45rem;border-radius:4px;border:1px solid var(--hair)}
+.tag.auto{background:var(--qa-bg);border-color:var(--qa)}
+.tag.p1{background:var(--bad-bg);border-color:var(--bad)}
+.tag.p2{background:var(--warn-bg)}
+.tag.neg{background:var(--head-bg);margin-left:4px}
+.small{font-size:.8125rem;color:var(--muted)}
+footer{margin-top:2.4rem;padding-top:.8rem;border-top:1px solid var(--hair);font-size:.8125rem;color:var(--muted)}
+@media (max-width:600px){.scroll>table:not(.tc){min-width:30rem}.fields{grid-template-columns:1fr}.fields dd{border-top:0;padding-top:.2rem}.fields dt{border-top:1px solid var(--hair2)}.fields dt:first-of-type{border-top:0}}
+@media print{
+ :root{--ink:#000;--muted:#333;--bg:#fff;--card:#fff;--hair:#888;--hair2:#ccc;--accent:#1f3a68;--qa:#1d7157;--qa-bg:#fff;--warn-bg:#fff;--head-bg:#eee;--bad-bg:#fff}
+ body{font-size:9pt;line-height:1.35;background:#fff}
+ h1{font-size:16pt}
+ h2{font-size:11pt;margin:.7rem 0 .25rem}
+ table{font-size:8pt}
+ th,td{padding:.2rem .4rem}
+ ul,ol{margin:.2rem 0}
+ li+li{margin-top:.1rem}
+ .sample{padding:.4rem .7rem;margin-bottom:.6rem}
+ .lede{margin-top:.2rem}
+ .site a{display:none}
+ main{max-width:none;padding:0}
+ h2{break-after:avoid}
+ .report{border-radius:0}
+ .scroll{overflow:visible;border-radius:0}
+ tr,.fields,.callout,pre{break-inside:avoid}
+ thead{display:table-header-group}
+ a{color:#000;text-decoration:none}
+ .tc{min-width:0;font-size:7.5pt}
+ .tc td,.tc th{padding:.2rem .3rem}
+ .chip,.tag{border-color:#444}
+}
+@media print{@page{size:A4;margin:14mm}}</style>
+</head>
+<body>
+<header class="site"><span class="who">Apurv Das &middot; QA work sample</span><a href="../#role=qa">&larr; Back to portfolio</a></header>
+<main>
+<p class="sample" role="note">Sample from my own project, Project Manager. Not client work.<span>My paid QA work is confidential, so these samples use a web app I built and test myself. The commits and test names below can be checked in <a href="https://github.com/ApurvDas/project-manager">the repository</a>; where I took a measurement myself, the page says how.</span></p>
+
+<h1>Bug report samples</h1>
+<p class="lede">Two real defects I found and fixed in Project Manager, written the way I would file them in JIRA. Everything under Root cause, Fix and Regression test comes from the git history and the test suite. Severity and priority are my own assessment, and the ticket IDs are sample IDs, not from a real tracker.</p>
+
+<article class="report" aria-labelledby="r1">
+<p class="key">PM-QA-001 (sample ID) &middot; Bug &middot; Performance</p>
+<h2 id="r1">Idle pages spend about 400 ms of main-thread time per 10 s because the floating clock redraws on every frame</h2>
+<div class="chips">
+ <span class="chip ok">Status: Fixed and verified</span>
+ <span class="chip sev">Severity: Medium (my assessment)</span>
+ <span class="chip">Priority: Medium (my assessment)</span>
+ <span class="chip">Reproducibility: Always, 3 of 3 runs</span>
+</div>
+
+<dl class="fields">
+ <dt>Project / component</dt><dd>Project Manager v2 / floating analogue clock (<code>tickClocks()</code> in <code>web/assets/js/app.js</code>, <code>.clock__hand--s</code> in <code>web/assets/css/app.css</code>)</dd>
+ <dt>Introduced</dt><dd><a href="https://github.com/ApurvDas/project-manager/commit/942fbf379d7732b863ffb76f67bd19536f676b5a">942fbf3</a>, 28 Sep 2026 (&ldquo;Add a floating analogue clock&hellip;&rdquo;)</dd>
+ <dt>Fixed in</dt><dd><a href="https://github.com/ApurvDas/project-manager/commit/733b7e2ee134a0e12fc86561752720d283ed5fdd">733b7e2</a>, 1 Oct 2026</dd>
+ <dt>Affected build</dt><dd><code>942fbf3</code>, the parent of the fix. The clock sits on every page, so every page is affected.</dd>
+ <dt>Environment</dt><dd>Re-measured on 28 Oct 2026: Windows 10 Home 10.0.19045, Playwright 1.63.0 with its bundled headless Chromium 153.0.8010.12, Node 24.15.0, page served by a static file server. The original ~320 ms figure comes from the commit message and test comment; the environment it was taken in is not recorded.</dd>
+ <dt>Preconditions</dt><dd>Build <code>942fbf3</code> served from <code>v2/web</code> on any static server. No database or sign-in is needed, because the sign-in page also shows the clock. Tab visible, no input during the measurement.</dd>
+</dl>
+
+<h3>Steps to reproduce</h3>
+<ol>
+ <li>Serve the <code>v2/web</code> folder of commit <code>942fbf3</code>, for example with <code>npx http-server</code>.</li>
+ <li>Open <code>/login.html</code> in Chromium and wait until the <code>.clock</code> element is on screen.</li>
+ <li>Open a DevTools Protocol session, enable the <code>Performance</code> domain and read the <code>TaskDuration</code> metric (call it t0).</li>
+ <li>Leave the page completely idle for 10 seconds.</li>
+ <li>Read <code>TaskDuration</code> again. The difference from t0 is the main-thread time the idle page used.</li>
+</ol>
+
+<h3>Expected result</h3>
+<p>A small decorative clock on an idle page costs almost nothing. The budget I later wrote into the regression test is under 64 ms per 10 s, which is 80% less than the ~320 ms first observed.</p>
+
+<h3>Actual result</h3>
+<p>The idle page used 382 to 417 ms of main-thread time in 10 s (about 4% of one core&rsquo;s main thread), with nothing happening on screen but the clock. The commit and the spec comment both record ~320 ms for the original observation.</p>
+
+<h3>Evidence</h3>
+<p>The defect is invisible, so there is no screenshot; the numbers are the evidence. I re-ran the spec&rsquo;s own method (same CDP metric, 10 s idle, <code>login.html</code>) against the parent build and the fixed build, 3 runs each, on 28 Oct 2026:</p>
+<div class="scroll" role="region" aria-label="Idle main-thread time per run" tabindex="0">
+<table>
+<caption>Main-thread time while idle, in ms per 10 s (lower is better)</caption>
+<thead><tr><th scope="col">Build</th><th scope="col" class="num">Run 1</th><th scope="col" class="num">Run 2</th><th scope="col" class="num">Run 3</th></tr></thead>
+<tbody>
+<tr><th scope="row">942fbf3 (before the fix)</th><td class="num">417</td><td class="num">410</td><td class="num">382</td></tr>
+<tr><th scope="row">733b7e2 (the fix)</th><td class="num">24</td><td class="num">18</td><td class="num">15</td></tr>
+</tbody></table>
+</div>
+<p class="small">Three different numbers appear on this page and they should not be mixed up: ~320 ms before and ~13 ms after are quoted from the fix commit&rsquo;s message; 64 ms is the test&rsquo;s pass threshold, not a measurement; the table is my own re-measurement. My measuring script was a one-off and is not in the repository.</p>
+<p>What the old code did, from the diff of the introducing commit: <code>tickClocks()</code> rewrote the <code>transform</code> of three hands and the <code>stroke-dasharray</code> of the day ring, ran <code>querySelectorAll</code>, and then asked for the next frame:</p>
+<pre><code>function tickClocks() { /* set hand angles, day ring, aria-label */
+    requestAnimationFrame(tickClocks);
+}</code></pre>
+
+<h3>Root cause</h3>
+<p>The second hand was driven from JavaScript so that it would sweep smoothly, and the loop ran once per screen frame (the browser&rsquo;s display refresh rate) for as long as the page was visible. Almost all of that work was redundant: the hour and minute hands and the day ring change visibly only about once a minute.</p>
+
+<h3>Fix</h3>
+<p><a href="https://github.com/ApurvDas/project-manager/commit/733b7e2ee134a0e12fc86561752720d283ed5fdd">733b7e2</a> moves the second hand into CSS and slows the JavaScript to once a minute:</p>
+<ul>
+ <li><code>.clock__hand--s</code> now runs <code>animation: clock-sweep 60s steps(480) infinite</code> (8 steps a second), so it costs no JavaScript per frame.</li>
+ <li><code>tickClocks()</code> sets a negative <code>animation-delay</code> so the sweep starts at the real second, then re-arms itself with <code>setTimeout</code> for the next minute boundary (+50 ms), and runs again when the tab becomes visible.</li>
+</ul>
+<p class="note">Trade-off I accepted: the second hand now moves in 8 steps a second rather than on every frame. The same commit also adds unrelated features (Mark complete, a service worker, analytics), so the clock change is only part of that diff.</p>
+
+<h3>Verification</h3>
+<ul>
+ <li>Re-measured the fixed build 3 times: 24, 18 and 15 ms per 10 s, against 382 to 417 ms before (table above).</li>
+ <li>The fix commit&rsquo;s message reports ~320 ms down to ~13 ms per 10 s on the author&rsquo;s run.</li>
+ <li>Checked that the clock still works: the existing clock spec reads the real time, the day ring and the second hand&rsquo;s angle (below).</li>
+</ul>
+
+<h3>Regression tests</h3>
+<ul>
+ <li><a href="https://github.com/ApurvDas/project-manager/blob/v2-supabase/project-manager/v2/tests/e2e/clock-cpu.spec.js">tests/e2e/clock-cpu.spec.js</a>: &ldquo;an idle page with the clock does almost no main-thread work&rdquo;. It loads <code>login.html</code>, idles 10 s and fails if the main thread was busy for 64 ms or more. It needs no database.</li>
+ <li><a href="https://github.com/ApurvDas/project-manager/blob/v2-supabase/project-manager/v2/tests/e2e/interface.spec.js">tests/e2e/interface.spec.js</a>: &ldquo;shows the real time on every page and the second hand keeps sweeping&rdquo;. It guards against the cheaper clock being wrong or frozen: label, minute hand, day ring, and a second hand that is near the real second and then moves.</li>
+</ul>
+</article>
+
+<article class="report" aria-labelledby="r2">
+<p class="key">PM-QA-002 (sample ID) &middot; Bug &middot; UI</p>
+<h2 id="r2">Progress bars never fill: the coloured bar has zero width at any percentage</h2>
+<div class="chips">
+ <span class="chip ok">Status: Fixed and verified</span>
+ <span class="chip sev">Severity: Medium (my assessment)</span>
+ <span class="chip">Priority: Medium (my assessment)</span>
+ <span class="chip">Reproducibility: Always, per the fix commit</span>
+</div>
+<dl class="fields">
+ <dt>Project / component</dt><dd>Project Manager v2 / progress bar (<code>.progress</code>, <code>.progress-bar</code> in <code>web/assets/css/app.css</code>)</dd>
+ <dt>Introduced / fixed</dt><dd>Present from the v2 rebuild, <a href="https://github.com/ApurvDas/project-manager/commit/eadb3c2">eadb3c2</a> (26 Sep 2026, 16:29 +05:30). Fixed the same day in <a href="https://github.com/ApurvDas/project-manager/commit/cedadfdd604b57a82dfc30b956ecac47b6535892">cedadfd</a> (19:39 +05:30).</dd>
+ <dt>Environment</dt><dd>Chromium (the project&rsquo;s Playwright browser), local Supabase stack with seed data. I did not re-run the old build for this report; the behaviour is taken from the commit message and the test it added.</dd>
+ <dt>Preconditions</dt><dd>Signed in as the seeded user <code>developer@example.test</code>, who is a member of projects whose progress is above 0%.</dd>
+</dl>
+<h3>Steps to reproduce</h3>
+<ol>
+ <li>Open <code>/dashboard.html</code>.</li>
+ <li>Find a project with a progress bar and a percentage above 0 (the bar has an accessible label such as &ldquo;N% of tasks complete&rdquo;).</li>
+ <li>Compare the width of the coloured fill with the width of its track.</li>
+</ol>
+<h3>Expected result</h3>
+<p>The fill is as wide as its percentage of the track: 50% fills half of it.</p>
+<h3>Actual result</h3>
+<p>The fill has no width at any percentage, so every bar looks empty. The accessible label still announces the right percentage, so only sighted users lost the information.</p>
+<h3>Root cause</h3>
+<p><code>.progress</code> and <code>.progress-bar</code> are <code>&lt;span&gt;</code> elements, which are inline by default and ignore <code>width</code> and <code>height</code>. The fill&rsquo;s inline <code>width: N%</code> was therefore never applied. No test measured a bar&rsquo;s rendered width before the fix.</p>
+<h3>Fix</h3>
+<p><a href="https://github.com/ApurvDas/project-manager/commit/cedadfdd604b57a82dfc30b956ecac47b6535892">cedadfd</a>: <code>display: block</code> on both classes (2 lines of CSS).</p>
+<h3>Verification and regression test</h3>
+<p><a href="https://github.com/ApurvDas/project-manager/blob/v2-supabase/project-manager/v2/tests/e2e/interface.spec.js">tests/e2e/interface.spec.js</a>: &ldquo;progress bars fill to their percentage&rdquo;. For every bar on the dashboard it computes fill width divided by track width and requires it to equal the percentage in the bar&rsquo;s label, and requires at least one bar above 0% so the check cannot pass on empty data.</p>
+</article>
+
+<footer>Source: <a href="https://github.com/ApurvDas/project-manager">github.com/ApurvDas/project-manager</a>, branch <code>v2-supabase</code>. Commit dates are as recorded in git (+05:30).</footer>
+
+</main>
+</body>
+</html>

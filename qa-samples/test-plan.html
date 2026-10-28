@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Test plan: offline sync and roles</title>
+<meta name="description" content="A concise test plan for Project Manager v2 covering offline sync and role permissions.">
+<style>
+@font-face{font-family:"Geist";src:url(../fonts/Geist-Variable.woff2) format("woff2");font-weight:100 900;font-display:swap}
+@font-face{font-family:"Geist Mono";src:url(../fonts/GeistMono-Variable.woff2) format("woff2");font-weight:100 900;font-display:swap}
+:root{--ink:#16202e;--muted:#4a5667;--bg:#f3f6f9;--card:#fff;--hair:rgba(22,32,46,.22);--hair2:rgba(22,32,46,.11);
+ --accent:#2f4a6b;--qa:#1d7157;--qa-bg:#e3f1ec;--warn-bg:#fdf1dc;--bad-bg:#fbe6e3;--bad:#8c2315;--head-bg:#e6ecf2;
+ --sans:"Geist",system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+ --mono:"Geist Mono",ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;color-scheme:light dark}
+@media (prefers-color-scheme:dark){:root{--ink:#eef2f9;--muted:#b3c0d5;--bg:#0b1226;--card:#121c38;--hair:rgba(255,255,255,.26);--hair2:rgba(255,255,255,.12);
+ --accent:#a9bfe3;--qa:#6fd3ac;--qa-bg:#10303a;--warn-bg:#3a2d10;--bad-bg:#40181a;--bad:#f5a99f;--head-bg:#18264a}}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 1rem/1.6 var(--sans);-webkit-font-smoothing:antialiased;overflow-wrap:break-word}
+a{color:var(--accent);text-underline-offset:3px;overflow-wrap:anywhere}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+h1,h2,h3,p,ul,ol,dl,dd,figure,table{margin:0}
+code,pre{font-family:var(--mono);font-size:.875em}
+code{overflow-wrap:anywhere;background:var(--hair2);padding:.05em .3em;border-radius:4px}
+pre{overflow-x:auto;background:var(--card);border:1px solid var(--hair);border-radius:8px;padding:.8rem 1rem;line-height:1.5;margin:.6rem 0}
+pre code{background:none;padding:0;overflow-wrap:normal}
+.site{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:4px 16px;padding:6px 16px;border-bottom:1px solid var(--hair2);background:var(--card)}
+.site .who{font:500 .75rem/1.2 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.site a{display:inline-flex;align-items:center;min-height:44px;font-weight:500;text-decoration:none}
+.site a:hover{text-decoration:underline}
+main{max-width:62rem;margin:0 auto;padding:24px 16px 56px}
+main.wide{max-width:96rem}
+.sample{border:1px solid var(--hair);border-left:5px solid var(--qa);background:var(--qa-bg);border-radius:8px;padding:.7rem 1rem;margin-bottom:1.4rem;font-weight:600}
+.sample span{font-weight:400;color:var(--muted);display:block;font-size:.9rem}
+h1{font-size:clamp(1.5rem,4.5vw,2.1rem);line-height:1.2;letter-spacing:-.02em;font-weight:600}
+.lede{color:var(--muted);margin-top:.5rem;max-width:70ch}
+h2{font-size:1.2rem;letter-spacing:-.01em;margin:2rem 0 .6rem;padding-bottom:.3rem;border-bottom:1px solid var(--hair)}
+h3{font-size:1rem;margin:1.2rem 0 .3rem}
+p+p,p+ul,p+ol,ul+p,ol+p{margin-top:.6rem}
+ul,ol{padding-left:1.3rem;margin:.4rem 0}
+li+li{margin-top:.25rem}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:.8rem 0}
+.chip{font:500 .75rem/1 var(--mono);padding:.45rem .6rem;border-radius:999px;border:1px solid var(--hair);background:var(--card)}
+.chip.ok{background:var(--qa-bg);border-color:var(--qa)}
+.chip.sev{background:var(--warn-bg)}
+.report{border:1px solid var(--hair);border-radius:12px;background:var(--card);padding:1.2rem 1.2rem 1.4rem;margin-top:1.4rem}
+.report>h2:first-child{margin-top:0;border:0;padding:0}
+.key{font:500 .8125rem/1 var(--mono);color:var(--muted);margin-bottom:.4rem}
+.fields{display:grid;grid-template-columns:11rem 1fr;gap:0;border:1px solid var(--hair);border-radius:8px;overflow:hidden;margin:.8rem 0}
+.fields dt,.fields dd{padding:.5rem .8rem;border-top:1px solid var(--hair2)}
+.fields dt:first-of-type,.fields dt:first-of-type+dd{border-top:0}
+.fields dt{font:500 .75rem/1.5 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);background:var(--head-bg)}
+.note{border-left:4px solid var(--hair);padding:.1rem 0 .1rem .9rem;color:var(--muted);margin:.7rem 0}
+.callout{border:1px solid var(--hair);background:var(--warn-bg);border-radius:8px;padding:.6rem .9rem;margin:.8rem 0;font-size:.9375rem}
+.scroll{overflow-x:auto;border:1px solid var(--hair);border-radius:8px;background:var(--card);margin:.6rem 0;max-width:100%}
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+caption{text-align:left;padding:.5rem .7rem;font-size:.8125rem;color:var(--muted)}
+th,td{padding:.45rem .7rem;text-align:left;vertical-align:top;border-top:1px solid var(--hair2)}
+thead th{background:var(--head-bg);font:500 .72rem/1.3 var(--mono);letter-spacing:.06em;text-transform:uppercase;border-top:0}
+tbody th{font-weight:600}
+td.num,th.num{font-family:var(--mono);text-align:right;white-space:nowrap}
+.tc{min-width:1180px;font-size:.8125rem}
+.tc td,.tc th{padding:.5rem .6rem}
+.tc tbody th{white-space:nowrap}
+.tc code{white-space:nowrap}
+.tc ol{padding-left:1.1rem;margin:0}
+.tag{display:inline-block;font:500 .6875rem/1 var(--mono);padding:.25rem .45rem;border-radius:4px;border:1px solid var(--hair)}
+.tag.auto{background:var(--qa-bg);border-color:var(--qa)}
+.tag.p1{background:var(--bad-bg);border-color:var(--bad)}
+.tag.p2{background:var(--warn-bg)}
+.tag.neg{background:var(--head-bg);margin-left:4px}
+.small{font-size:.8125rem;color:var(--muted)}
+footer{margin-top:2.4rem;padding-top:.8rem;border-top:1px solid var(--hair);font-size:.8125rem;color:var(--muted)}
+@media (max-width:600px){.scroll>table:not(.tc){min-width:30rem}.fields{grid-template-columns:1fr}.fields dd{border-top:0;padding-top:.2rem}.fields dt{border-top:1px solid var(--hair2)}.fields dt:first-of-type{border-top:0}}
+@media print{
+ :root{--ink:#000;--muted:#333;--bg:#fff;--card:#fff;--hair:#888;--hair2:#ccc;--accent:#1f3a68;--qa:#1d7157;--qa-bg:#fff;--warn-bg:#fff;--head-bg:#eee;--bad-bg:#fff}
+ body{font-size:9pt;line-height:1.35;background:#fff}
+ h1{font-size:16pt}
+ h2{font-size:11pt;margin:.7rem 0 .25rem}
+ table{font-size:8pt}
+ th,td{padding:.2rem .4rem}
+ ul,ol{margin:.2rem 0}
+ li+li{margin-top:.1rem}
+ .sample{padding:.4rem .7rem;margin-bottom:.6rem}
+ .lede{margin-top:.2rem}
+ .site a{display:none}
+ main{max-width:none;padding:0}
+ h2{break-after:avoid}
+ .report{border-radius:0}
+ .scroll{overflow:visible;border-radius:0}
+ tr,.fields,.callout,pre{break-inside:avoid}
+ thead{display:table-header-group}
+ a{color:#000;text-decoration:none}
+ .tc{min-width:0;font-size:7.5pt}
+ .tc td,.tc th{padding:.2rem .3rem}
+ .chip,.tag{border-color:#444}
+}
+@media print{@page{size:A4;margin:14mm}}</style>
+</head>
+<body>
+<header class="site"><span class="who">Apurv Das &middot; QA work sample</span><a href="../#role=qa">&larr; Back to portfolio</a></header>
+<main>
+<p class="sample" role="note">Sample from my own project, Project Manager. Not client work.<span>My paid QA work is confidential, so these samples use a web app I built and test myself. The commits and test names below can be checked in <a href="https://github.com/ApurvDas/project-manager">the repository</a>; where I took a measurement myself, the page says how.</span></p>
+
+<h1>Test plan: offline sync and roles</h1>
+<p class="lede">Project Manager v2 (Supabase + GitHub Pages, with a Tauri Windows shell). The feature area under test is the local copy with its outbox sync, and the four project roles that decide who may do what. This is a plan I wrote for my own project; entry and exit criteria are proposals for how I would run it, not a record of past releases.</p>
+
+<p class="small">Author: Apurv Das. Product: <a href="https://apurvdas.github.io/project-manager/">apurvdas.github.io/project-manager</a>, branch <code>v2-supabase</code>. Related: <a href="test-cases.html">test cases</a>, <a href="bug-report.html">bug reports</a>.</p>
+
+<h2>1. Scope</h2>
+<ul>
+ <li><strong>Roles and permissions.</strong> Owner, manager, member and viewer inside a project, plus the site admin and non-members. Rules are enforced in Postgres (row-level security and functions); the UI only hides controls. Checked through the API as each seeded role and again in the browser.</li>
+ <li><strong>Local copy and sync.</strong> The IndexedDB copy, <code>sync_pull</code>, live updates over Realtime, and wiping the copy on sign-out.</li>
+ <li><strong>Offline editing.</strong> Edits queued in the outbox and sent in order with safe retries; the sync pill states (Synced, Offline, N waiting, Problem); creating things that depend on other unsaved things.</li>
+ <li><strong>Conflict merge.</strong> Per-field merge when two people edit the same task or project; the newer edit wins on the same field and both sides are told.</li>
+ <li><strong>Surfaces touched by the above.</strong> Kanban drag and drop, notifications, and layout at phone and desktop widths.</li>
+</ul>
+
+<h2>2. Out of scope</h2>
+<ul>
+ <li>v1 (PHP / CodeIgniter) and the <code>desktop-app</code> installer, signing and auto-update. The desktop shell is covered only as far as its web code goes, with a stubbed Tauri bridge; smoke-testing the installed app is manual and separate.</li>
+ <li>Browsers other than Chromium. The Playwright project is Chromium only.</li>
+ <li>Load and stress testing, and performance beyond the idle-CPU guard.</li>
+ <li>Security testing beyond the permission rules above (no penetration test), and a full accessibility audit.</li>
+ <li>Supabase itself, and email delivery for sign-in links and password reset.</li>
+</ul>
+
+<h2>3. Approach</h2>
+<div class="scroll" role="region" aria-label="Test approach by level" tabindex="0">
+<table>
+<thead><tr><th scope="col">Level</th><th scope="col">What it covers</th><th scope="col">How</th></tr></thead>
+<tbody>
+<tr><th scope="row">API permission tests</th><td>Every role&rsquo;s rights, merge rules, retry safety, sync cursors, notification access</td><td><a href="https://github.com/ApurvDas/project-manager/blob/v2-supabase/project-manager/v2/tests/rls.test.mjs">tests/rls.test.mjs</a>, run with <code>npm test</code> (Node&rsquo;s test runner and supabase-js). It resets the database, signs in as each seeded user and calls the API exactly as a browser would, checking for the Postgres permission error <code>42501</code> where a role must be refused.</td></tr>
+<tr><th scope="row">Playwright E2E</th><td>User journeys: board, offline round trips, conflicts, live updates, notifications, layout</td><td>Specs in <code>tests/e2e/</code>, run with <code>npm run e2e</code>. Two browser contexts stand in for two people; <code>context.setOffline()</code> stands in for losing the network. A helper truncates and re-seeds the database before each test.</td></tr>
+<tr><th scope="row">Manual and exploratory</th><td>What the scripts do not assert: wrong-password message, sign-in as the next person after sign-out, 375 px layout, touch behaviour, the installed desktop app</td><td>Charters from the <a href="test-cases.html">test-case table</a>; findings go in as bug reports in the style of <a href="bug-report.html">these samples</a>.</td></tr>
+<tr><th scope="row">Layout scripts</th><td>Horizontal overflow, header controls and the clock on screen across 20 viewport sizes on 5 pages (sweep) and 12 pages at phone width (audit)</td><td><code>tests/viewport-sweep.mjs</code> and <code>tests/mobile-audit.mjs</code>, run by hand (not part of <code>npm run e2e</code>).</td></tr>
+</tbody></table>
+</div>
+<p>Each defect found becomes a regression test at the lowest level that can catch it (the idle-CPU and progress-bar bugs in the bug report samples both did).</p>
+
+<h2>4. Environments</h2>
+<div class="scroll" role="region" aria-label="Test environments" tabindex="0">
+<table>
+<thead><tr><th scope="col">Environment</th><th scope="col">Setup</th><th scope="col">Used for</th></tr></thead>
+<tbody>
+<tr><th scope="row">Local</th><td>Docker Desktop, Supabase CLI (<code>npx supabase start</code>), static site on port 8123; a stamped copy on port 8124 where the service worker registers. Windows 10, Chromium.</td><td>All automated runs and most manual testing. Tests destroy the data in this database.</td></tr>
+<tr><th scope="row">Production</th><td>Free Supabase project plus GitHub Pages, signed in as the guest account</td><td>Read-only smoke check after a deploy. Never the target of the automated suites.</td></tr>
+<tr><th scope="row">Desktop</th><td>Installed Windows app (WebView2)</td><td>Manual smoke only.</td></tr>
+</tbody></table>
+</div>
+
+<h2>5. Test data</h2>
+<ul>
+ <li>The seed file creates users <code>admin</code>, <code>manager</code>, <code>developer</code>, <code>designer</code>, <code>tester</code> and a site admin <code>IronWarrior</code>, each with a local-only password from the seed file.</li>
+ <li>In project <em>Website Redesign</em>: admin is owner, manager is manager, designer and developer are members, tester is a viewer. <em>Internal Wiki</em> has admin as owner and developer as member; designer is not in it, which makes it the non-member case.</li>
+ <li>Seeded tasks sit in four columns (<code>todo</code>, <code>in_progress</code>, <code>review</code>, <code>completed</code>). Every test resets to this state, so ids and names are stable.</li>
+ <li>Two-person cases use two separate browser contexts, never two tabs of one session.</li>
+</ul>
+
+<h2>6. Entry and exit criteria</h2>
+<div class="scroll" role="region" aria-label="Entry and exit criteria" tabindex="0">
+<table>
+<thead><tr><th scope="col">Entry (proposed)</th><th scope="col">Exit (proposed)</th></tr></thead>
+<tbody><tr>
+<td><ul>
+ <li>Build deployed to the local stack from a clean <code>supabase db reset</code>.</li>
+ <li>Migrations applied and seed data loaded.</li>
+ <li>Smoke path works by hand: sign in, open a project, open the board.</li>
+ <li>Test cases for the changed area reviewed.</li>
+</ul></td>
+<td><ul>
+ <li>All P1 cases pass; no open Critical or High defect.</li>
+ <li>API permission suite and E2E suite green on a fresh reset.</li>
+ <li>Every P2 failure has a ticket and a decision (fix or accept).</li>
+ <li>Manual cases for the area run on the final build.</li>
+ <li>Layout scripts report no overflow.</li>
+</ul></td>
+</tr></tbody></table>
+</div>
+
+<h2>7. Risks and mitigations</h2>
+<div class="scroll" role="region" aria-label="Risks and mitigations" tabindex="0">
+<table>
+<thead><tr><th scope="col">Risk</th><th scope="col">Mitigation</th></tr></thead>
+<tbody>
+<tr><td>Automated runs wipe the shared local database, which logs out and clears whatever I was doing by hand.</td><td>Run suites on the local stack only, one worker (the config sets <code>workers: 1</code>), and sign in again afterwards.</td></tr>
+<tr><td>Live updates can be dropped just after a database reset, which makes tests flaky.</td><td>The <code>liveReady</code> helper proves the channel with a harmless change before the timed step.</td></tr>
+<tr><td>Conflict resolution depends on edit timestamps, so two edits made in the same second are ambiguous.</td><td>Conflict tests separate the two edits by 1.1 s.</td></tr>
+<tr><td>Offline behaviour needs the service worker, which only registers on a stamped build.</td><td>Offline specs run against the stamped server on port 8124.</td></tr>
+<tr><td>No CI job runs the tests. The repository&rsquo;s workflows only deploy the site and build the desktop app.</td><td>Run both suites before each release; adding them to a pipeline is a follow-up.</td></tr>
+<tr><td>The free Supabase tier pauses after about a week idle and rate-limits email.</td><td>Resume the project before a production smoke check; use Mailpit locally.</td></tr>
+<tr><td>Chromium-only automation hides issues in other engines.</td><td>Manual pass in Firefox and on a phone for layout and touch before release.</td></tr>
+</tbody></table>
+</div>
+
+<h2>8. Deliverables</h2>
+<ul>
+ <li>This plan, and the <a href="test-cases.html">test-case table</a> with its automated mapping.</li>
+ <li>Automated specs: <a href="https://github.com/ApurvDas/project-manager/blob/v2-supabase/project-manager/v2/tests/rls.test.mjs">rls.test.mjs</a> and the Playwright specs under <a href="https://github.com/ApurvDas/project-manager/tree/v2-supabase/project-manager/v2/tests/e2e">tests/e2e</a>.</li>
+ <li>Bug reports for anything found (<a href="bug-report.html">format samples</a>), and a short pass / fail summary per run.</li>
+ <li>HTML Playwright report from each E2E run, with traces kept on failure.</li>
+</ul>
+<p class="small">The last full E2E count recorded in git is &ldquo;60/60 e2e&rdquo; in <a href="https://github.com/ApurvDas/project-manager/commit/7c4bb754bb46f2f270c56efad18eb50ced72b7f4">7c4bb75</a>&rsquo;s message; I did not re-run the suites while writing this page.</p>
+
+</main>
+</body>
+</html>
