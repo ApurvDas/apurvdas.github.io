@@ -595,7 +595,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
     g.globalCompositeOperation = 'destination-out'; const fl = g.createLinearGradient(0, yb - 4, 0, yb + 26); fl.addColorStop(0, 'rgba(0,0,0,0)'); fl.addColorStop(1, 'rgba(0,0,0,1)'); g.fillStyle = fl; g.fillRect(0, yb - 4, 512, 256);   // soft flat bottom
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
   });
-  const CLOUD_N = { low: 4, mid: 8, high: 12 }, CLOUD_W = 260;   // 3 parallax depths behind the mountains
+  const CLOUD_N = { low: 3, mid: 8, high: 12 }, CLOUD_W = 260;   // 3 parallax depths behind the mountains
   const clouds = (() => {
     const rnd = mulberry(77), grp = new THREE.Group(), L3 = [[-190, 95, 40], [-250, 120, 52], [-330, 150, 66]], out = [];
     for (let i = 0; i < 12; i++) {
