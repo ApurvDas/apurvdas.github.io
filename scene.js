@@ -16,8 +16,15 @@ export function createScene({ canvas, stallBtn, onStall }) {
   let raf = 0, last = 0, lastAct = 0, nextDraw = 0, settled = false, ready = false, clock = 0, distS = 68;
 
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
+  /* Quality tiers. Slow frames first switch expensive features off (tier steps down), and only when none are left drop the resolution (q).
+     high: shadows, grass, snowfall, more clouds, denser terrain. mid: outlines, medium clouds. low: today's cost plus toon shading, painted colours, a few clouds. */
+  const TIERS = ['low', 'mid', 'high'], tierQS = new URLSearchParams(location.search).get('tier');   // ?tier=low|mid|high forces one (testing)
+  const gpuName = (() => { try { const gl = renderer.getContext(), e = gl.getExtension('WEBGL_debug_renderer_info'); return String(gl.getParameter(e ? e.UNMASKED_RENDERER_WEBGL : gl.RENDERER)); } catch { return ''; } })();
+  const weakGPU = /swiftshader|llvmpipe|softpipe|basic render|(?<!U)HD Graphics (?:[2-5][0-9]{2,3})(?![0-9])/i.test(gpuName) || !renderer.capabilities.isWebGL2 || renderer.capabilities.maxTextureSize < 8192;
+  let tier = TIERS.includes(tierQS) ? tierQS : weakGPU ? 'low' : (innerWidth < 700 || matchMedia('(pointer: coarse)').matches) ? 'mid' : 'high';
+  const startTier = tier, atLeast = t => TIERS.indexOf(tier) >= TIERS.indexOf(t);
   // adaptive render scale: drop the internal resolution while frames run under 60
-  let q = 1, ft = FRAME, prevDraw = 0, pace = FRAME, chained = false;   // pace: 60 fps, or 30 on GPUs that can't hold 60 even at the lowest scale
+  let q = 1, ft = FRAME, prevDraw = 0, pace = FRAME, chained = false, grace = 30;   // pace: 60 fps, or 30 on GPUs that can't hold 60 even at the lowest scale; grace: frames ignored after start / a tier step (shader compiles)
   let scale = 1;   // the scale actually rendered: q while moving, full resolution once the view rests
   const Q_MIN = .7;
   renderer.setClearColor(0x000000, 0);
@@ -487,10 +494,12 @@ export function createScene({ canvas, stallBtn, onStall }) {
 
   /* ---------- layout ---------- */
   const Lo = { dist: 68, sx: 0, up: 0, mdx: 0, mdy: 0, w: 1, h: 1 };
-  function setRes() {   // drawing-buffer size only; renders on every scrolling frame, so cap at 1.25x and scale by q
-    renderer.setPixelRatio(Math.min(devicePixelRatio || 1, Lo.w < 700 ? 1 : 1.25) * scale);
+  function setRes() {   // drawing-buffer size only. mid/high render up to 2x (sharp on 1.5-2x laptops and phones); low keeps the old, cheap 1.25x / 1x cap
+    renderer.setPixelRatio(Math.min(devicePixelRatio || 1, tier === 'low' ? (Lo.w < 700 ? 1 : 1.25) : 2) * scale);
     renderer.setSize(Lo.w, Lo.h, false);
   }
+  function applyTier() { setRes(); dirty = true; }
+  function tierDown() { tier = TIERS[TIERS.indexOf(tier) - 1]; applyTier(); }
   function layout() {
     const w = Math.max(1, canvas.clientWidth), h = Math.max(1, canvas.clientHeight), a = w / h;
     Lo.w = w; Lo.h = h;
@@ -570,10 +579,15 @@ export function createScene({ canvas, stallBtn, onStall }) {
 
     renderer.render(scene, camera); dirty = false;
     const gap = now - prevDraw; prevDraw = now;
-    if (chained && !calm) {   // moving frames only (the loop ran without resting, so the gap is real frame time, however slow)
-      ft += (Math.min(gap, 250) - ft) * .1;   // one hitch can't shove it too far
-      if (ft > 26 && q <= Q_MIN && pace === FRAME) { pace = 1000 / 30; ft = pace; }   // still under ~38 fps at the lowest scale: a steady 30 beats a stutter
-      else if (ft > 18.5 && q > Q_MIN && pace === FRAME) { q = Math.max(Q_MIN, q - .15); ft = FRAME; scale = q; setRes(); }   // under ~54 fps: render fewer pixels while moving
+    if (chained && (!calm || step === pace)) {   // frames of an unbroken run (the gap is real frame time, however slow); resting frames at a 30 fps idle are on purpose
+      if (grace > 0) grace--;
+      else {
+        ft += (Math.min(gap, 250) - ft) * .1;   // one hitch can't shove it too far
+        if (ft > 18.5 && tier !== 'low') { tierDown(); ft = FRAME; grace = 12; }   // under ~54 fps: switch expensive features off first (also while resting at the base)
+        else if (calm) { /* resolution only drops while moving */ }
+        else if (ft > 26 && q <= Q_MIN && pace === FRAME) { pace = 1000 / 30; ft = pace; }   // still under ~38 fps at the lowest scale: a steady 30 beats a stutter
+        else if (ft > 18.5 && q > Q_MIN && pace === FRAME) { q = Math.max(Q_MIN, q - .15); ft = FRAME; scale = q; setRes(); }   // then render fewer pixels while moving
+      }
       // ponytail: only steps down (once per visit); stepping back up made edge-of-60 GPUs flip sharp/soft every few seconds
     }
     if (stallBtn) {   // anchor the focusable stall label to the 3D stall
@@ -586,12 +600,13 @@ export function createScene({ canvas, stallBtn, onStall }) {
   }
   document.addEventListener('visibilitychange', () => { if (document.hidden) { cancelAnimationFrame(raf); raf = 0; } else poke(); });   // nothing renders in a hidden tab
   new ResizeObserver(layout).observe(canvas);
+  renderer.compile(scene, camera);   // build the shaders now, so the first moving frames are not measured as slow
   ready = true; layout();
-  if (/[?&]fps\b/.test(location.search)) {   // ?fps: a tiny readout of the scene's frame rate and render scale, for testing on real hardware
+  if (/[?&]fps\b/.test(location.search)) {   // ?fps: a tiny readout of the scene's tier, frame rate and render scale, for testing on real hardware
     const hud = document.createElement('div');
     hud.style.cssText = 'position:fixed;z-index:99;left:8px;top:64px;padding:4px 8px;border-radius:6px;background:#000c;color:#9f9;font:12px/1.3 monospace;pointer-events:none';
     document.body.appendChild(hud);
-    setInterval(() => { hud.textContent = `${Math.round(1000 / ft)} fps · moving ${Math.round(q * 100)}% · now ${Math.round(scale * 100)}% · ${canvas.width}px · ${pace === FRAME ? '60' : '30'} cap`; }, 500);
+    setInterval(() => { hud.textContent = `${tier}${tier === startTier ? '' : ' (from ' + startTier + ')'} · ${Math.round(1000 / ft)} fps · moving ${Math.round(q * 100)}% · now ${Math.round(scale * 100)}% · ${canvas.width}px · ${pace === FRAME ? '60' : '30'} cap`; }, 500);
   }
 
   return {
