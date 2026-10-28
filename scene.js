@@ -85,7 +85,26 @@ export function createScene({ canvas, stallBtn, onStall }) {
     lastSnow = sm(0, 1, (a - 13) / 11 + (ny - .62) * 1.3); c.lerp(SNOW_T, lastSnow);
     return c;
   }
-  function terrain({ x0, x1, z0, z1, nx, nz, h, seed, jit = .3, hz = 0, near }) {
+  /* back ranges: fully baked painted colours (day + night variants, mixed by one uniform), unlit and fog-free, so the snow caps and the light / shade sides
+     stay readable at night. Light comes from the upper left (the moon side); each facet is shaded rock or snow by slope + height. */
+  const rangeMix = { value: 0 }, BL = new THREE.Vector3(-.62, .5, .6).normalize();
+  const BK = {
+    d: { rockSh: '#3f4f85', rockLit: '#7a8ec6', wood: '#4f8076', snowLit: '#ffffff', snowSh: '#a3b6e6', haze: '#c3d3f4', hz: .55 },
+    n: { rockSh: '#111a3d', rockLit: '#3b4f94', wood: '#16314a', snowLit: '#c9d6ff', snowSh: '#5973bb', haze: '#1b2a58', hz: .5 },
+  };
+  for (const k of ['d', 'n']) for (const q in BK[k]) if (typeof BK[k][q] === 'string') BK[k][q] = new THREE.Color(BK[k][q]);
+  const bc1 = new THREE.Color(), bc2 = new THREE.Color();
+  function bakeRange(c, V, x, y, z, nx, ny, nz, B, h0, A, hz, seed) {
+    const hn = clamp((y - h0) / A, 0, 1.3), nl = nx * BL.x + ny * BL.y + nz * BL.z;
+    const lit = sm(-.1, .2, nl) * .45 + sm(.25, .6, nl) * .55;   // two soft steps: shade / half light / light
+    const sn = sm(.5, .6, hn + (fbm(x * .08 + seed, z * .1) - .5) * .4 + (ny - .6) * .6);   // snow: upper slopes, less on steep faces
+    c.copy(B.rockSh).lerp(B.rockLit, lit).lerp(B.wood, (1 - sm(0, .3, hn)) * .55 * (1 - sn));
+    c.lerp(bc2.copy(B.snowSh).lerp(B.snowLit, lit), sn).lerp(B.haze, Math.min(.9, hz * B.hz));
+    V.push(c.r, c.g, c.b);
+  }
+  const rangeMat = new THREE.MeshBasicMaterial({ vertexColors: true, fog: false });
+  rangeMat.onBeforeCompile = sh => { sh.uniforms.uMix = rangeMix; sh.vertexShader = 'attribute vec3 colorN; uniform float uMix;\n' + sh.vertexShader.replace('#include <color_vertex>', 'vColor = mix(color, colorN, uMix);'); };
+  function terrain({ x0, x1, z0, z1, nx, nz, h, seed, jit = .3, hz = 0, near, back }) {
     const rnd = mulberry(seed), dx = (x1 - x0) / nx, dz = (z1 - z0) / nz, P = [];
     for (let j = 0; j <= nz; j++) for (let i = 0; i <= nx; i++) {
       const edge = i === 0 || j === 0 || i === nx || j === nz;
@@ -100,6 +119,15 @@ export function createScene({ canvas, stallBtn, onStall }) {
     const g = new THREE.BufferGeometry();   // indexed: shared vertices, so the normals are smooth
     g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setIndex(idx); g.computeVertexNormals();
     const n = g.attributes.normal, col = new Float32Array((P.length / 3) * 3);
+    if (back) {
+      const D = [], N = [];
+      for (let v = 0; v < P.length / 3; v++) {
+        const x = P[v * 3], y = P[v * 3 + 1], z = P[v * 3 + 2], a = n.getX(v), b = n.getY(v), e = n.getZ(v), h0 = back.base;
+        bakeRange(bc1, D, x, y, z, a, b, e, BK.d, h0, back.A, hz, seed); bakeRange(bc1, N, x, y, z, a, b, e, BK.n, h0, back.A, hz, seed);
+      }
+      g.setAttribute('color', new THREE.Float32BufferAttribute(D, 3)); g.setAttribute('colorN', new THREE.Float32BufferAttribute(N, 3));
+      return new THREE.Mesh(g, rangeMat);
+    }
     for (let v = 0; v < P.length / 3; v++) {
       const x = P[v * 3], y = P[v * 3 + 1], z = P[v * 3 + 2];
       paint(cc, x, y, z, n.getY(v));
@@ -111,10 +139,10 @@ export function createScene({ canvas, stallBtn, onStall }) {
     const m = toon({ vertexColors: true, gradientMap: near ? gradT : gradM });
     tintMats.push(m); const mesh = new THREE.Mesh(g, m); mesh.receiveShadow = !!near; return mesh;   // only the near layer takes shadows
   }
-  const range = (seed, k, base, A, z0, z1) => (x, z) => {
+  const range = (seed, base, A, z0, z1) => (x, z) => {
     const tz = (z1 - z) / (z1 - z0);
-    const pk = .55 * ridge(x * .034 + seed + z * .02) + .3 * ridge(x * .081 + seed * 2.3) + .15 * ridge(x * .17 + seed * 3.1 + z * .05);
-    return k * gY(x) + base + A * pk * (.22 + .78 * sm(0, .85, tz));
+    const pk = .5 * ridge(x * .034 + seed + z * .02) + .28 * ridge(x * .081 + seed * 2.3) + .12 * ridge(x * .17 + seed * 3.1 + z * .05) + .1 * (1 - Math.abs(2 * vnoise(x * .12 + seed, z * .1) - 1));
+    return base + A * pk * (.3 + .7 * sm(0, .5, tz) - .5 * sm(.7, 1, tz));   // rises to a crest part-way back, then falls away: a real ridge line, no cliff at the far edge
   };
   const lakeY = gY(LK.x) - .42 * LK.z - .6;
   const nearH = (x, z) => {
@@ -126,10 +154,15 @@ export function createScene({ canvas, stallBtn, onStall }) {
   };
   // ponytail: terrain density is fixed at the start tier (rebuilding on a step-down would cost a hitch); only high gets the finer grid
   const dens = tier === 'high' ? 1.4 : 1;
+  // the three back ranges hang off the camera with parallax (kx, ky = share of the camera's travel they follow), so the crests stay inside the frame at every station;
+  // heights are local (no uphill slope), tuned so the tallest peaks sit below the header at 1920x863 / 1440x900 / 390x844
+  const rangeMeshes = [
+    [-160, -110, 11, 1.3, 6, 34, .62, .5, .93], [-102, -62, 22, 4.1, 4, 22, .42, .38, .91], [-58, -26, 33, 7.7, 2, 14, .22, .26, .89],
+  ].map(([z0, z1, seed, rs, base, A, hz, kx, ky]) => {
+    const m = terrain({ x0: -270, x1: 270, z0, z1, nx: 420, nz: 20, jit: .08, h: range(rs, base, A, z0, z1), seed, hz, back: { base, A } }); m.userData.kx = kx; m.userData.ky = ky; return m;
+  });
+  scene.add(...rangeMeshes);
   scene.add(
-    terrain({ x0: -300, x1: 330, z0: -160, z1: -110, nx: 260, nz: 14, jit: .08, h: range(1.3, .75, 18, 64, -160, -110), seed: 11, hz: .72 }),
-    terrain({ x0: -280, x1: 310, z0: -102, z1: -62, nx: 250, nz: 14, jit: .08, h: range(4.1, .8, 12, 54, -102, -62), seed: 22, hz: .55 }),
-    terrain({ x0: -250, x1: 290, z0: -58, z1: -26, nx: 230, nz: 14, jit: .08, h: range(7.7, .85, 6, 44, -58, -26), seed: 33, hz: .34 }),
     terrain({ x0: -170, x1: 260, z0: -24, z1: 40, nx: 190 * dens | 0, nz: 22 * dens | 0, h: nearH, seed: 44, jit: .25, near: true })
   );
   { // the kids' snow patch: a thin mesh draped on the meadow, textured from patchField with a crisp irregular edge and a few cool/warm tone patches
@@ -147,7 +180,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
     for (let i = 0; i < pp.count; i++) { const x = pp.getX(i) + cx, z = pp.getZ(i) + cz; pp.setXYZ(i, x, nearH(x, z) + .07, z); }
     pg.computeVertexNormals();
     const m = toon({ map: tx, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
-    m.userData.night = new THREE.Color('#353c4c'); tintMats.push(m);   // at night: a dark muted blue-grey (white x the night tint would be a purple puddle)
+    m.userData.night = new THREE.Color('#66739f'); tintMats.push(m);   // at night: a dark muted blue-grey (white x the night tint would be a purple puddle)
     const patch = new THREE.Mesh(pg, m); patch.receiveShadow = true; scene.add(patch);
   }
   { // Tsomgo Lake: one flat disc
@@ -370,6 +403,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
     sp.scale.setScalar(.45 + k * .9); sp.material.opacity = still ? (i === 0 ? .5 : 0) : Math.sin(Math.PI * k) * .6;
   });
 
+  const wireMat = new THREE.LineBasicMaterial({ color: '#3a4352' });   // fence wires + flag strings: dark by day, pale blue by moonlight (a dark line vanishes on a dark hill)
   /* ---------- boundary marker stone + fence along the ridge (decorative) ---------- */
   {
     const bx = 114, bz = -4.2, gy = nearH(bx, bz);
@@ -381,7 +415,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
     posts.forEach(([x, y]) => add('dark', .16, 1.5, .16, x, y + .65, -9));
     const seg = [];
     for (let i = 0; i < posts.length - 1; i++) for (const hy of [1.15, .75]) seg.push(posts[i][0], posts[i][1] + hy, -9, posts[i + 1][0], posts[i + 1][1] + hy, -9);
-    const wl = new THREE.LineSegments(new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(seg, 3)), new THREE.LineBasicMaterial({ color: '#3a4352' }));
+    const wl = new THREE.LineSegments(new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(seg, 3)), wireMat);
     scene.add(wl);
   }
 
@@ -560,7 +594,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
       const g = nearH(s.B.x, s.B.z), pole = new THREE.Mesh(new THREE.CylinderGeometry(.06, .09, s.B.y - g + .8, 5), mDark);
       pole.position.set(s.B.x, (s.B.y + g - .8) / 2, s.B.z); scene.add(pole);
     });
-    const lm = new THREE.LineBasicMaterial({ color: '#3a4352' });
+    const lm = wireMat;
     strings.forEach(s => scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(Array.from({ length: 21 }, (_, i) => strAt(s, i / 20))), lm)));
   }
   const NF = strings.reduce((a, s) => a + s.n, 0);
@@ -589,10 +623,22 @@ export function createScene({ canvas, stallBtn, onStall }) {
     const p = new THREE.Points(g, new THREE.PointsMaterial({ color: '#dbe6ff', size: 1.7, sizeAttenuation: false, transparent: true, opacity: 0, fog: false, depthWrite: false }));
     p.frustumCulled = false; p.visible = false; scene.add(p); return p;
   })();
-  const moonMat = new THREE.MeshBasicMaterial({ color: '#e9efff', transparent: true, opacity: 0, fog: false, depthWrite: false });
-  const haloMat = new THREE.MeshBasicMaterial({ color: '#8ea6e6', transparent: true, opacity: 0, fog: false, depthWrite: false });
-  const moon = new THREE.Mesh(new THREE.CircleGeometry(6.5, 40), moonMat), halo = new THREE.Mesh(new THREE.CircleGeometry(16, 40), haloMat);
-  moon.visible = halo.visible = false; scene.add(halo, moon);
+  const glowTex = (() => {   // halo: a soft radial glow, eased to fully transparent well inside the quad (no edge)
+    const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d'), gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+    for (let i = 0; i <= 10; i++) { const t = i / 10; gr.addColorStop(t, `rgba(255,255,255,${(Math.pow(1 - t, 2.2) * .9).toFixed(3)})`); }
+    g.fillStyle = gr; g.fillRect(0, 0, 128, 128); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+  })();
+  const moonTex = (() => {   // the disc: pale, with a few soft dim seas and a cooler rim, so it is not a flat white coin
+    const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+    g.beginPath(); g.arc(64, 64, 62, 0, 7); g.clip(); g.fillStyle = '#eef2ff'; g.fillRect(0, 0, 128, 128);
+    [[48, 50, 17, .16], [78, 44, 11, .12], [70, 80, 20, .14], [40, 82, 9, .1], [86, 68, 8, .1]].forEach(([x, y, r, a]) => { const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, `rgba(120,138,190,${a})`); gr.addColorStop(1, 'rgba(120,138,190,0)'); g.fillStyle = gr; g.fillRect(0, 0, 128, 128); });
+    const rim = g.createRadialGradient(64, 64, 46, 64, 64, 62); rim.addColorStop(0, 'rgba(150,170,225,0)'); rim.addColorStop(1, 'rgba(150,170,225,.35)'); g.fillStyle = rim; g.fillRect(0, 0, 128, 128);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
+  })();
+  const moonMat = new THREE.MeshBasicMaterial({ map: moonTex, transparent: true, opacity: 0, fog: false, depthWrite: false });
+  const haloMat = new THREE.MeshBasicMaterial({ map: glowTex, color: '#9db4f0', transparent: true, opacity: 0, fog: false, depthWrite: false });
+  const moon = new THREE.Mesh(new THREE.PlaneGeometry(13, 13), moonMat), halo = new THREE.Mesh(new THREE.PlaneGeometry(70, 70), haloMat);
+  moon.visible = halo.visible = false; halo.renderOrder = 1; moon.renderOrder = 2; scene.add(halo, moon);
 
   /* ---------- gentle snowfall around Tsomgo Lake and Nathu La (high tier; still with reduced motion). The fall is in the vertex shader. ---------- */
   const snowT = { value: 0 };
@@ -617,18 +663,17 @@ export function createScene({ canvas, stallBtn, onStall }) {
     const blob = (x, y, r, rgb) => { const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, `rgba(${rgb},1)`); gr.addColorStop(.96, `rgba(${rgb},1)`); gr.addColorStop(1, `rgba(${rgb},0)`); g.fillStyle = gr; g.fillRect(x - r, y - r, 2 * r, 2 * r); };
     puffs.forEach(p => blob(p.x, p.y, p.r, '203,213,233'));                                    // soft blue-grey body: only a thin rim of it shows under the lit tops
     puffs.forEach(p => blob(p.x - p.r * .05, p.y - p.r * .11, p.r * .94, '255,250,241'));        // warm-lit tops
-    g.globalCompositeOperation = 'destination-out'; const fl = g.createLinearGradient(0, yb - 2, 0, yb + 12); fl.addColorStop(0, 'rgba(0,0,0,0)'); fl.addColorStop(1, 'rgba(0,0,0,1)'); g.fillStyle = fl; g.fillRect(0, yb - 2, 512, 256);   // flat bottom
+    g.globalCompositeOperation = 'destination-out'; const fl = g.createLinearGradient(0, yb - 26, 0, yb + 14); fl.addColorStop(0, 'rgba(0,0,0,0)'); fl.addColorStop(1, 'rgba(0,0,0,1)'); g.fillStyle = fl; g.fillRect(0, yb - 26, 512, 256);   // the underside dissolves softly (no flat cut-off line)
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
   });
-  const CLOUD_N = { low: 3, mid: 8, high: 12 }, CLOUD_W = 260;   // 3 parallax depths behind the mountains
+  const CLOUD_N = { low: 3, mid: 5, high: 7 }, CLOUD_W = 175, CLOUD_Z = -105;   // all clouds hang just in front of the far range and behind the mid one, above every crest, so no ridge can cut them
   const clouds = (() => {
-    const rnd = mulberry(77), grp = new THREE.Group(), L3 = [[-190, 95, 40], [-250, 120, 52], [-330, 150, 66]], out = [];
-    for (let i = 0; i < 12; i++) {
-      const l = i % 3, [z, w] = L3[l];   // layers alternate, so the first four already span the depths
+    const rnd = mulberry(77), grp = new THREE.Group(), out = [], d = 68 + Math.abs(CLOUD_Z), half = .325 * d, off = d * .1 - 6.8;   // the camera looks slightly down, so the view's centre line is `off` below the group at this depth
+    for (let i = 0; i < 7; i++) {
+      const l = i % 3, w = [54, 44, 36][l] * (.9 + rnd() * .25);
       const m = new THREE.Mesh(new THREE.PlaneGeometry(w, w / 2), new THREE.MeshBasicMaterial({ map: cloudTex[i % 3], transparent: true, depthWrite: false, fog: false }));
-      const sc = .85 + rnd() * .3, d = 68 + Math.abs(z), half = .325 * d, ch = w / 4 * sc, off = d * .1 - 6.8;   // the camera looks slightly down, so the view's centre line is `off` below the group at this depth
-      const ys = half * .1 + rnd() * Math.max(0, half * .74 - ch - half * .1);     // on-screen height: the whole cloud stays inside the sky band, clear of the top bar
-      m.position.z = z; const o = { m, x0: (rnd() * 2 - 1) * CLOUD_W, y: ys - off + 5, l }; m.scale.setScalar(sc);
+      const ys = half * (.74 + (i % 2) * .07 + rnd() * .05) - w / 8;   // whole cloud between the tallest crest (ndc ~.7) and the top of the frame; the lower part dissolves
+      m.position.z = CLOUD_Z; const o = { m, x0: (i / 6 * 2 - 1) * CLOUD_W + (rnd() - .5) * 30, y: ys - off + 5, l };
       m.userData.o = o; grp.add(m); out.push(o);
     }
     scene.add(grp); return { grp, out };
@@ -640,7 +685,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
   const C = o => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, typeof v === 'string' ? new THREE.Color(v) : v]));
   const TH = {
     light: C({ skyTop: '#79aee6', skyMid: '#b8d3ee', skyBot: '#fbe1c8', fog: '#bccef0', cloud: '#ffffff', cloudO: .97, tint: '#ffffff', wood: '#ffffff', hemiSky: '#d9e5f6', hemiGnd: '#9aaed6', hemiI: 1.95, dirC: '#ffe2b8', dirI: 2.1, win: '#e6eef6', glow: 0, warm: 0, stars: 0, moon: 0, dx: -55, dy: 42, dz: 38 }),
-    dark: C({ skyTop: '#050a1a', skyMid: '#0c1631', skyBot: '#1c2c58', fog: '#162243', cloud: '#6d82bc', cloudO: .7, tint: '#6c80b8', wood: '#9aa3c0', hemiSky: '#4b61a0', hemiGnd: '#0b1226', hemiI: 1.15, dirC: '#a9c0ff', dirI: 1.7, win: '#ffc77a', glow: 55, warm: 60, stars: 1, moon: 1, dx: 50, dy: 60, dz: 30 }),
+    dark: C({ skyTop: '#050a1a', skyMid: '#0c1631', skyBot: '#1c2c58', fog: '#162243', cloud: '#4e64ab', cloudO: .62, tint: '#6c80b8', wood: '#9aa3c0', hemiSky: '#4b61a0', hemiGnd: '#0b1226', hemiI: 1.15, dirC: '#a9c0ff', dirI: 1.7, win: '#ffc77a', glow: 55, warm: 60, stars: 1, moon: 1, dx: 50, dy: 60, dz: 30 }),
   };
   const colorKeys = ['skyTop', 'skyMid', 'skyBot', 'fog', 'cloud', 'tint', 'wood', 'hemiSky', 'hemiGnd', 'dirC', 'win'], numKeys = ['cloudO', 'hemiI', 'dirI', 'glow', 'warm', 'stars', 'moon', 'dx', 'dy', 'dz'];
   const _c = new THREE.Color(), cur = C({ skyTop: '#000', skyMid: '#000', skyBot: '#000', fog: '#000', cloud: '#000', tint: '#000', wood: '#000', hemiSky: '#000', hemiGnd: '#000', dirC: '#000', win: '#000' });
@@ -657,11 +702,11 @@ export function createScene({ canvas, stallBtn, onStall }) {
     dir.color.copy(cur.dirC); dir.intensity = n.dirI; dir.position.set(n.dx, n.dy, n.dz).normalize().multiplyScalar(130).add(dir.target.position); shDirty = true;
     lakeMat && lakeMat.color.set('#86bccb').lerp(new THREE.Color('#27406a'), k);
     mLine.color.set('#3d2a1e').lerp(_c.set('#0b0f1c'), k); mLineTree.color.copy(mLine.color);
-    snowfall.material.opacity = .8 - .4 * k; snowfall.material.color.set('#ffffff').lerp(_c.set('#a9b8e0'), k);   // night flakes: dimmer and bluer, so they do not read as stars
+    wireMat.color.set('#3a4352').lerp(_c.set('#8d9ed2'), k); rangeMix.value = k; snowfall.material.opacity = .8 - .4 * k; snowfall.material.color.set('#ffffff').lerp(_c.set('#a9b8e0'), k);   // night flakes: dimmer and bluer, so they do not read as stars
     mWin.color.copy(cur.win); glow.intensity = n.glow; warmI = n.warm;
     glow.visible = n.glow > .01; warm.visible = n.warm > .01;   // unlit point lights still cost every pixel; leave them out by day
     stars.material.opacity = n.stars * .85; stars.visible = n.stars > .01;
-    moonMat.opacity = n.moon; haloMat.opacity = n.moon * .1; moon.visible = halo.visible = n.moon > .01 && moonOK;
+    moonMat.opacity = n.moon; haloMat.opacity = n.moon * .55; moon.visible = halo.visible = n.moon > .01 && moonOK;
     dirty = true;
   }
   applyTheme();
@@ -735,6 +780,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
     S.cx = p.x - S.ox; S.cy = p.y + S.oy;   // locked to the cabin
     camera.position.set(S.cx, S.cy + distS * .1, distS); camera.lookAt(S.cx, S.cy, 0);
     clouds.grp.position.set(S.cx * .82, S.cy * .9, 0);
+    rangeMeshes.forEach(m => m.position.set(S.cx * m.userData.kx, S.cy * m.userData.ky, 0));
     stars.position.set(S.cx, S.cy, 0); moon.position.set(S.cx + Lo.mdx, S.cy + Lo.mdy, -250); halo.position.copy(moon.position);
     settled = reduce || (Math.abs(target - S.u) < 2e-5 && Math.abs(S.uv) < 2e-4 && Math.abs(S.th) < .003 && Math.abs(S.thv) < .004 &&
       Math.abs(Lo.sx - S.ox) < .02 && Math.abs(Lo.up - S.oy) < .02 && Math.abs(Lo.dist - distS) < .03);
