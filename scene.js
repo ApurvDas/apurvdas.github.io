@@ -43,7 +43,12 @@ export function createScene({ canvas, stallBtn, onStall }) {
   const dir = new THREE.DirectionalLight(0xffffff, 1);
   const glow = new THREE.PointLight(0xffc27a, 0, 24, 2);      // cabin
   const warm = new THREE.PointLight(0xffa24d, 0, 34, 1.6);     // nearest lodge / stall
-  scene.add(hemi, dir, warm);
+  scene.add(hemi, dir, dir.target, warm);
+  // soft shadows (high tier only). The scene is static, so the map is only redrawn when a caster moved or the light changed (needsUpdate).
+  renderer.shadowMap.enabled = tier === 'high'; renderer.shadowMap.type = THREE.PCFSoftShadowMap; renderer.shadowMap.autoUpdate = false;
+  dir.castShadow = tier === 'high'; dir.target.position.set(45, 15, 0);
+  Object.assign(dir.shadow.camera, { left: -150, right: 150, top: 75, bottom: -75, near: 1, far: 320 }); dir.shadow.mapSize.set(2048, 2048); dir.shadow.bias = -.0006; dir.shadow.normalBias = .5;
+  let shDirty = true;
 
   /* ---------- layout of the route (x grows uphill) ---------- */
   const gY = x => 0.33 * x + 11.8;
@@ -98,7 +103,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
     }
     g.setAttribute('color', new THREE.BufferAttribute(col, 3));
     const m = toon({ vertexColors: true });
-    tintMats.push(m); return new THREE.Mesh(g, m);
+    tintMats.push(m); const mesh = new THREE.Mesh(g, m); mesh.receiveShadow = !!patch; return mesh;   // only the near layer takes shadows
   }
   const range = (seed, k, base, A, z0, z1) => (x, z) => {
     const tz = (z1 - z) / (z1 - z0);
@@ -172,6 +177,11 @@ export function createScene({ canvas, stallBtn, onStall }) {
   const steel = toon({ color: '#4d5767' });
   const mWin = new THREE.MeshBasicMaterial({ color: '#e6eef6' });
   const woodMats = [mWood, mDark, mRoof, mRock, mBamboo];
+  /* thin dark warm-brown outlines (inverted hulls: back faces, slightly bigger) on stations, cabin, pylons and trees; mid + high tiers */
+  const mLine = new THREE.MeshBasicMaterial({ color: '#3d2a1e', side: THREE.BackSide });
+  const mLineTree = new THREE.MeshBasicMaterial({ color: '#3d2a1e', side: THREE.BackSide });
+  mLineTree.onBeforeCompile = sh => { sh.vertexShader = sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n transformed += normal * .045;'); };   // push each instance's shell out along its normals
+  const outlines = [];   // every outline mesh; shown from mid up
   tintMats.push(mSnow); mSnow.userData.base = new THREE.Color('#f4f7fc');
 
   /* ---------- cable (catenary spans): base wheel -> pylons -> mid -> pylons -> top wheel ---------- */
@@ -226,6 +236,9 @@ export function createScene({ canvas, stallBtn, onStall }) {
       d.scale.set(r[6], a.distanceTo(b), r[6]); d.updateMatrix(); im.setMatrixAt(i, d.matrix);
     });
     scene.add(im);
+    const hl = new THREE.InstancedMesh(im.geometry, mLine, bars.length); hl.instanceMatrix = im.instanceMatrix; scene.add(hl); outlines.push(hl);   // thin hull: same instances, slightly fatter
+    bars.forEach((r, i) => { a.set(r[0], r[1], r[2]); b.set(r[3], r[4], r[5]); d.position.copy(a).add(b).multiplyScalar(.5); d.quaternion.setFromUnitVectors(up, b.clone().sub(a).normalize()); d.scale.set(r[6] + .04, a.distanceTo(b) + .08, r[6] + .04); d.updateMatrix(); hl.setMatrixAt(i, d.matrix); });
+    im.castShadow = true;
     PYL.forEach(x => { const top = gY(x) + 9; const w = new THREE.Mesh(new THREE.CylinderGeometry(.42, .42, .3, 10).rotateX(Math.PI / 2), steel); w.position.set(x, top - .45, 0); scene.add(w); });
   }
 
@@ -364,7 +377,8 @@ export function createScene({ canvas, stallBtn, onStall }) {
     // conifers: three stacked cones, varied greens, snow on the upper tiers above the snow line
     const GREENS = ['#3b6b4d', '#47795a', '#2f5d47', '#55845a', '#3f7350'].map(h => new THREE.Color(h));
     const cone = new THREE.ConeGeometry(1, 1, 8, 1), trunk = new THREE.CylinderGeometry(.12, .16, 1, 6);
-    const mk = (geo, n, per) => { const m = toon(); tintMats.push(m); const im = new THREE.InstancedMesh(geo, m, spots.length); im.userData.max = spots.length; counted.push({ im, n, per: per || 1 }); scene.add(im); return im; };
+    const mk = (geo, n, per) => { const m = toon(); tintMats.push(m); const im = new THREE.InstancedMesh(geo, m, spots.length); im.userData.max = spots.length; counted.push({ im, n, per: per || 1 }); scene.add(im); im.castShadow = true; im.receiveShadow = true; return im; };
+    const hullOf = im => { const o = counted.find(e => e.im === im), h = new THREE.InstancedMesh(im.geometry, mLineTree, im.instanceMatrix.count); h.instanceMatrix = im.instanceMatrix; h.userData.max = im.userData.max; counted.push({ im: h, n: o.n, per: o.per }); scene.add(h); outlines.push(h); };
     const PN = { low: 26, mid: 40, high: 64 };
     const lv = [[1.7, 2.6, 1.0, 0, .1], [1.3, 2.3, 2.3, .25, .55], [.85, 2.0, 3.5, .55, .95]];
     spots.forEach(sp => { sp.g = GREENS[Math.floor(rc() * GREENS.length)]; sp.snow = sm(14, 27, sp.y); });
@@ -372,6 +386,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
       const im = mk(cone, PN);
       spots.forEach((sp, i) => { d.position.set(sp.x, sp.y + (yo + h / 2) * sp.s, sp.z); d.scale.set(r * sp.s, h * sp.s, r * sp.s); d.rotation.y = i; d.updateMatrix(); im.setMatrixAt(i, d.matrix); im.setColorAt(i, c.copy(sp.g).lerp(MEAD_B, lift * .35).lerp(SNOW, sp.snow * snowK)); });
     });
+    const cones = counted.map(e => e.im);   // the three conifer tiers
     const tr = mk(trunk, PN);
     spots.forEach((sp, i) => { d.position.set(sp.x, sp.y + .5 * sp.s, sp.z); d.scale.set(sp.s, 1.4 * sp.s, sp.s); d.rotation.y = 0; d.updateMatrix(); tr.setMatrixAt(i, d.matrix); tr.setColorAt(i, c.set('#5a4636')); });
 
@@ -393,6 +408,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
       });
     });
     bt.userData.max = bp.userData.max = bl.length;
+    cones.forEach(hullOf); hullOf(bp);
 
     // high tier: swaying grass tufts + tiny flowers on the base meadow (wind in the vertex shader)
     const blade = [], bc = [], W = .09, H = .85;
@@ -421,7 +437,14 @@ export function createScene({ canvas, stallBtn, onStall }) {
   }
 
   /* ---------- flush merged parts ---------- */
-  [['wood', mWood, 1], ['dark', mDark], ['roof', mRoof], ['snow', mSnow], ['rock', mRock], ['win', mWin]].forEach(([k, m, uv]) => { if (L[k].length) scene.add(new THREE.Mesh(merge(L[k], !!uv), m)); });
+  [['wood', mWood, 1], ['dark', mDark], ['roof', mRoof], ['snow', mSnow], ['rock', mRock], ['win', mWin]].forEach(([k, m, uv]) => {
+    if (!L[k].length) return;
+    const mesh = new THREE.Mesh(merge(L[k], !!uv), m); mesh.castShadow = mesh.receiveShadow = k !== 'win'; scene.add(mesh);
+    if (k === 'wood' || k === 'roof' || k === 'rock') {   // outline hull from the chunky boxes only (a thin rail would turn into a fat brown bar)
+      const big = L[k].filter(it => Math.min(it[0], it[1], it[2]) >= .24).map(it => [it[0] + .16, it[1] + .16, it[2] + .16, ...it.slice(3)]);
+      const hl = new THREE.Mesh(merge(big, false), mLine); scene.add(hl); outlines.push(hl);
+    }
+  });
   tintMats.push(mRock); mRock.userData.base = new THREE.Color('#a39a8d');
 
   /* ---------- kids playing in the snow under the cable ---------- */
@@ -485,7 +508,11 @@ export function createScene({ canvas, stallBtn, onStall }) {
   /* ---------- cabin ---------- */
   const mBody = toon({ color: '#2f4a6b' }), mCRoof = toon({ color: '#c3ccd8' }), mCDark = toon({ color: '#2a3340' });
   const pivot = new THREE.Group(), swing = new THREE.Group(); pivot.add(swing); scene.add(pivot);
-  const cbox = (w, h, d, m, y, x = 0) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, 0); swing.add(o); return o; };
+  const cbox = (w, h, d, m, y, x = 0) => {
+    const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, 0); o.castShadow = true; swing.add(o);
+    if (Math.min(w, h, d) > .2) { const l = new THREE.Mesh(new THREE.BoxGeometry(w + .12, h + .12, d + .12), mLine); l.position.copy(o.position); swing.add(l); outlines.push(l); }
+    return o;
+  };
   cbox(.5, .36, .42, mCDark, -.1); cbox(.12, 1.3, .12, mCDark, -.85);
   cbox(3.3, .2, 2.3, mCRoof, -1.6); cbox(3, 1.9, 2, mBody, -2.64);
   cbox(3.05, .7, 2.05, mWin, -2.44); cbox(.07, .7, 2.1, mBody, -2.44, -.55); cbox(.07, .7, 2.1, mBody, -2.44, .55);
@@ -543,6 +570,21 @@ export function createScene({ canvas, stallBtn, onStall }) {
   const moon = new THREE.Mesh(new THREE.CircleGeometry(6.5, 40), moonMat), halo = new THREE.Mesh(new THREE.CircleGeometry(16, 40), haloMat);
   moon.visible = halo.visible = false; scene.add(halo, moon);
 
+  /* ---------- gentle snowfall around Tsomgo Lake and Nathu La (high tier; still with reduced motion). The fall is in the vertex shader. ---------- */
+  const snowT = { value: 0 };
+  const snowfall = (() => {
+    const rnd = mulberry(33), N = 360, H = 32, pos = [], aux = [];
+    [[LK.x, lakeY - 2], [TX + 6, gY(TX) - 6]].forEach(([cx, y0]) => { for (let i = 0; i < N; i++) { pos.push(cx + (rnd() - .5) * 70, rnd() * H, -14 + rnd() * 38); aux.push(y0, rnd()); } });
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('aux', new THREE.Float32BufferAttribute(aux, 2));
+    const m = new THREE.PointsMaterial({ color: '#ffffff', size: 2.4, sizeAttenuation: false, transparent: true, opacity: .85, depthWrite: false, fog: false });
+    m.onBeforeCompile = sh => {
+      sh.uniforms.uT = snowT;
+      sh.fragmentShader = sh.fragmentShader.replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>' + String.fromCharCode(10) + 'if (length(gl_PointCoord - .5) > .5) discard;');   // round flakes
+      sh.vertexShader = 'uniform float uT; attribute vec2 aux;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n transformed.y = aux.x + ' + H.toFixed(1) + ' - mod(position.y + uT * (1.6 + aux.y * 1.2), ' + H.toFixed(1) + ');\n transformed.x += sin(uT * .8 + aux.y * 40.) * .8;');
+    };
+    const p = new THREE.Points(g, m); p.frustumCulled = false; scene.add(p); return p;   // the shader moves the points, so the raw bounding sphere would be wrong
+  })();
+
   /* ---------- clouds: big soft cumulus billboards, canvas-painted (warm lit tops, cool undersides, flat bottoms) ---------- */
   const cloudTex = [3, 17, 29].map(seed => {
     const rnd = mulberry(seed), c = document.createElement('canvas'); c.width = 512; c.height = 256; const g = c.getContext('2d'), yb = 196, n = 8 + (seed % 3);
@@ -576,7 +618,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
     dark: C({ skyTop: '#050a1a', skyMid: '#0c1631', skyBot: '#1c2c58', fog: '#162243', cloud: '#6d82bc', cloudO: .7, tint: '#6c80b8', wood: '#9aa3c0', hemiSky: '#4b61a0', hemiGnd: '#0b1226', hemiI: 1.15, dirC: '#a9c0ff', dirI: 1.7, win: '#ffc77a', glow: 55, warm: 60, stars: 1, moon: 1, dx: 50, dy: 60, dz: 30 }),
   };
   const colorKeys = ['skyTop', 'skyMid', 'skyBot', 'fog', 'cloud', 'tint', 'wood', 'hemiSky', 'hemiGnd', 'dirC', 'win'], numKeys = ['cloudO', 'hemiI', 'dirI', 'glow', 'warm', 'stars', 'moon', 'dx', 'dy', 'dz'];
-  const cur = C({ skyTop: '#000', skyMid: '#000', skyBot: '#000', fog: '#000', cloud: '#000', tint: '#000', wood: '#000', hemiSky: '#000', hemiGnd: '#000', dirC: '#000', win: '#000' });
+  const _c = new THREE.Color(), cur = C({ skyTop: '#000', skyMid: '#000', skyBot: '#000', fog: '#000', cloud: '#000', tint: '#000', wood: '#000', hemiSky: '#000', hemiGnd: '#000', dirC: '#000', win: '#000' });
   let mix = root.dataset.theme === 'dark' ? 1 : 0, mixTarget = mix, warmI = 0;
   function applyTheme() {
     const k = sm(0, 1, mix), A = TH.light, B = TH.dark, n = {};
@@ -587,8 +629,9 @@ export function createScene({ canvas, stallBtn, onStall }) {
     tintMats.forEach(m => { m.color.copy(cur.tint); if (m.userData.base) m.color.multiply(m.userData.base); });
     mWood.color.copy(cur.wood); mDark.color.copy(cur.wood).multiply(new THREE.Color('#5a3e2a')); mRoof.color.copy(cur.wood).multiply(new THREE.Color('#8c4b3b')); mBamboo.color.copy(cur.wood).multiply(new THREE.Color('#c9a45c'));
     hemi.color.copy(cur.hemiSky); hemi.groundColor.copy(cur.hemiGnd); hemi.intensity = n.hemiI;
-    dir.color.copy(cur.dirC); dir.intensity = n.dirI; dir.position.set(n.dx, n.dy, n.dz);
+    dir.color.copy(cur.dirC); dir.intensity = n.dirI; dir.position.set(n.dx, n.dy, n.dz).normalize().multiplyScalar(130).add(dir.target.position); shDirty = true;
     lakeMat && lakeMat.color.set('#86bccb').lerp(new THREE.Color('#27406a'), k);
+    mLine.color.set('#3d2a1e').lerp(_c.set('#0b0f1c'), k); mLineTree.color.copy(mLine.color);
     mWin.color.copy(cur.win); glow.intensity = n.glow; warmI = n.warm;
     glow.visible = n.glow > .01; warm.visible = n.warm > .01;   // unlit point lights still cost every pixel; leave them out by day
     stars.material.opacity = n.stars * .85; stars.visible = n.stars > .01;
@@ -603,8 +646,8 @@ export function createScene({ canvas, stallBtn, onStall }) {
     renderer.setPixelRatio(Math.min(devicePixelRatio || 1, tier === 'low' ? (Lo.w < 700 ? 1 : 1.25) : 2) * scale);
     renderer.setSize(Lo.w, Lo.h, false);
   }
-  function applyTier() { setRes(); counted.forEach(({ im, n, per }) => { im.count = Math.min(n[tier], im.userData.max ?? 1e9) * per; }); highOnly.forEach(m => { m.visible = tier === 'high'; }); clouds.out.forEach((o, i) => { o.m.visible = i < CLOUD_N[tier]; }); dirty = true; }
-  function tierDown() { tier = TIERS[TIERS.indexOf(tier) - 1]; applyTier(); }
+  function applyTier() { setRes(); snowfall.material.size = 2.4 * renderer.getPixelRatio(); snowfall.visible = tier === 'high' && !reduce; outlines.forEach(o => { o.visible = atLeast('mid'); }); shDirty = true; counted.forEach(({ im, n, per }) => { im.count = Math.min(n[tier], im.userData.max ?? 1e9) * per; }); highOnly.forEach(m => { m.visible = tier === 'high'; }); clouds.out.forEach((o, i) => { o.m.visible = i < CLOUD_N[tier]; }); dirty = true; }
+  function tierDown() { tier = TIERS[TIERS.indexOf(tier) - 1]; if (tier !== 'high') dir.castShadow = false; applyTier(); }   // dropping the shadow caster recompiles the lit shaders once
   function layout() {
     const w = Math.max(1, canvas.clientWidth), h = Math.max(1, canvas.clientHeight), a = w / h;
     Lo.w = w; Lo.h = h;
@@ -667,7 +710,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
       updateFlags(clock, false); updateKids(clock, lastCabinX, false); steamAt(clock, false);
     }
     const p = cableAt(S.u); lastCabinX = p.x;
-    if (!reduce) { updateClouds(clock); grassT.value = clock; }
+    if (!reduce) { updateClouds(clock); grassT.value = snowT.value = clock; }
     pivot.position.copy(p); pivot.position.y -= S.dip;
     swing.rotation.z = reduce ? 0 : S.th + Math.sin(clock * .8) * .012;
     const tx = p.x - Lo.sx, ty = p.y + Lo.up;
@@ -684,6 +727,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
     const wp = wx === SX ? stallPos : new THREE.Vector3(wx, park[wx === BX ? 'base' : wx === MX ? 'mid' : 'top'].y0 + 3, 2.5);
     warm.position.lerp(wp, reduce ? 1 : Math.min(1, dt * 3)); warm.intensity = warmI;
 
+    renderer.shadowMap.needsUpdate = dir.castShadow && (!settled || shDirty); shDirty = false;   // redraw the shadow map only when the cabin moved or the light / tier changed
     renderer.render(scene, camera); dirty = false;
     const gap = now - prevDraw; prevDraw = now;
     if (chained && (!calm || step === pace)) {   // frames of an unbroken run (the gap is real frame time, however slow); resting frames at a 30 fps idle are on purpose
@@ -719,7 +763,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
   return {
     setTheme(t) { mixTarget = t === 'dark' ? 1 : 0; poke(); },
     setAccent(hex) { mBody.color.set(hex); poke(); },
-    setReduced(b) { reduce = b; poke(); },
+    setReduced(b) { reduce = b; applyTier(); poke(); },
     setStatic(b) { frozen = b; if (b) stage = 0; poke(); },   // data-saver: one still frame at the base station
     setStage(s) { s = frozen ? 0 : clamp(s, 0, 2); if (Math.abs(s - stage) > 1e-4) { stage = s; poke(); } },
     setMode(m) { if (m !== mode) { mode = m; layout(); } },

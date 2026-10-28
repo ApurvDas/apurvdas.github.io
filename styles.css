@@ -52,6 +52,11 @@ button { font: inherit; color: inherit; }
 .sky { position: fixed; inset: 0; z-index: 0; background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-mid) 48%, var(--sky-bot) 86%); }
 .cam { position: fixed; inset: 0; z-index: 1; pointer-events: none; }
 .cam canvas { display: block; width: 100%; height: 100%; border-radius: inherit; }
+/* paper grain + a faint warm vignette over the painting: one static layer, no blend mode, so it costs the live canvas nothing */
+.cam::after { content: ""; position: absolute; inset: 0; opacity: .38; pointer-events: none;
+  background: radial-gradient(ellipse 130% 110% at 50% 42%, transparent 58%, rgba(90,55,30,.14) 100%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .32 0 0 0 0 .22 0 0 0 0 .14 1.3 0 0 0 -.5'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E"); }
+:root[data-theme="dark"] .cam::after { opacity: .24; }
 .cam[data-mode="off"] { display: none; }   /* only when WebGL fails */
 .cam-ui { position: fixed; inset: 0; z-index: 6; pointer-events: none; }   /* the 3D stall's momo button, above the glass */
 .contours { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; color: var(--ink); transition: opacity .6s var(--out), visibility 0s; }
