@@ -494,19 +494,46 @@ export function createScene({ canvas, stallBtn, onStall }) {
   const moon = new THREE.Mesh(new THREE.CircleGeometry(6.5, 40), moonMat), halo = new THREE.Mesh(new THREE.CircleGeometry(16, 40), haloMat);
   moon.visible = halo.visible = false; scene.add(halo, moon);
 
+  /* ---------- clouds: big soft cumulus billboards, canvas-painted (warm lit tops, cool undersides, flat bottoms) ---------- */
+  const cloudTex = [3, 17, 29].map(seed => {
+    const rnd = mulberry(seed), c = document.createElement('canvas'); c.width = 512; c.height = 256; const g = c.getContext('2d'), yb = 196, n = 8 + (seed % 3);
+    const puffs = Array.from({ length: n }, (_, i) => { const t = (i + .5) / n, r = 34 + 62 * Math.sin(Math.PI * t) * (.7 + rnd() * .5); return { x: 50 + 412 * t + (rnd() - .5) * 20, y: yb - r * (.55 + rnd() * .25), r }; });
+    const blob = (x, y, r, rgb, a) => { const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, `rgba(${rgb},${a})`); gr.addColorStop(.9, `rgba(${rgb},${a})`); gr.addColorStop(1, `rgba(${rgb},0)`); g.fillStyle = gr; g.fillRect(x - r, y - r, 2 * r, 2 * r); };
+    puffs.forEach(p => blob(p.x, p.y, p.r, '150,168,208', 1));                       // cool blue-grey body, shows at the undersides
+    puffs.forEach(p => blob(p.x - p.r * .1, p.y - p.r * .22, p.r * .84, '255,248,236', 1));   // warm-lit tops, offset toward the light
+    g.globalCompositeOperation = 'destination-out'; const fl = g.createLinearGradient(0, yb - 4, 0, yb + 26); fl.addColorStop(0, 'rgba(0,0,0,0)'); fl.addColorStop(1, 'rgba(0,0,0,1)'); g.fillStyle = fl; g.fillRect(0, yb - 4, 512, 256);   // soft flat bottom
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+  });
+  const CLOUD_N = { low: 4, mid: 8, high: 12 }, CLOUD_W = 260;   // 3 parallax depths behind the mountains
+  const clouds = (() => {
+    const rnd = mulberry(77), grp = new THREE.Group(), L3 = [[-190, 95, 40], [-250, 120, 52], [-330, 150, 66]], out = [];
+    for (let i = 0; i < 12; i++) {
+      const l = i % 3, [z, w, yy] = L3[l];   // layers alternate, so the first four already span the depths
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, w / 2), new THREE.MeshBasicMaterial({ map: cloudTex[i % 3], transparent: true, depthWrite: false, fog: false }));
+      m.position.z = z; const o = { m, x0: (rnd() * 2 - 1) * CLOUD_W, y: yy * (.9 + rnd() * .9) - 4, v: (.5 + rnd() * .5) * (3 - l) * .45, l }; m.scale.setScalar(.85 + rnd() * .3);
+      m.userData.o = o; grp.add(m); out.push(o);
+    }
+    scene.add(grp); return { grp, out };
+  })();
+  function updateClouds(t) {   // drift: driven by the loop's own clock, so clouds only move while something else keeps the loop running
+    clouds.out.forEach(o => { o.m.position.x = ((o.x0 + t * o.v + CLOUD_W) % (2 * CLOUD_W) + 2 * CLOUD_W) % (2 * CLOUD_W) - CLOUD_W; o.m.position.y = o.y; });
+  }
+  updateClouds(0);
+
   /* ---------- theme (cross-faded) ---------- */
   const C = o => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, typeof v === 'string' ? new THREE.Color(v) : v]));
   const TH = {
-    light: C({ skyTop: '#c4d2e1', skyBot: '#eaf0f5', fog: '#e6ecf2', tint: '#ffffff', wood: '#ffffff', hemiSky: '#d9e5f6', hemiGnd: '#9aaed6', hemiI: 1.95, dirC: '#ffe2b8', dirI: 2.1, win: '#e6eef6', glow: 0, warm: 0, stars: 0, moon: 0, dx: -55, dy: 42, dz: 38 }),
-    dark: C({ skyTop: '#050a1a', skyBot: '#18264a', fog: '#162243', tint: '#6c80b8', wood: '#9aa3c0', hemiSky: '#4b61a0', hemiGnd: '#0b1226', hemiI: 1.15, dirC: '#a9c0ff', dirI: 1.7, win: '#ffc77a', glow: 55, warm: 60, stars: 1, moon: 1, dx: 50, dy: 60, dz: 30 }),
+    light: C({ skyTop: '#79aee6', skyMid: '#b8d3ee', skyBot: '#fbe1c8', fog: '#e2e1ea', cloud: '#ffffff', cloudO: .97, tint: '#ffffff', wood: '#ffffff', hemiSky: '#d9e5f6', hemiGnd: '#9aaed6', hemiI: 1.95, dirC: '#ffe2b8', dirI: 2.1, win: '#e6eef6', glow: 0, warm: 0, stars: 0, moon: 0, dx: -55, dy: 42, dz: 38 }),
+    dark: C({ skyTop: '#050a1a', skyMid: '#0c1631', skyBot: '#1c2c58', fog: '#162243', cloud: '#6d82bc', cloudO: .7, tint: '#6c80b8', wood: '#9aa3c0', hemiSky: '#4b61a0', hemiGnd: '#0b1226', hemiI: 1.15, dirC: '#a9c0ff', dirI: 1.7, win: '#ffc77a', glow: 55, warm: 60, stars: 1, moon: 1, dx: 50, dy: 60, dz: 30 }),
   };
-  const colorKeys = ['skyTop', 'skyBot', 'fog', 'tint', 'wood', 'hemiSky', 'hemiGnd', 'dirC', 'win'], numKeys = ['hemiI', 'dirI', 'glow', 'warm', 'stars', 'moon', 'dx', 'dy', 'dz'];
-  const cur = C({ skyTop: '#000', skyBot: '#000', fog: '#000', tint: '#000', wood: '#000', hemiSky: '#000', hemiGnd: '#000', dirC: '#000', win: '#000' });
+  const colorKeys = ['skyTop', 'skyMid', 'skyBot', 'fog', 'cloud', 'tint', 'wood', 'hemiSky', 'hemiGnd', 'dirC', 'win'], numKeys = ['cloudO', 'hemiI', 'dirI', 'glow', 'warm', 'stars', 'moon', 'dx', 'dy', 'dz'];
+  const cur = C({ skyTop: '#000', skyMid: '#000', skyBot: '#000', fog: '#000', cloud: '#000', tint: '#000', wood: '#000', hemiSky: '#000', hemiGnd: '#000', dirC: '#000', win: '#000' });
   let mix = root.dataset.theme === 'dark' ? 1 : 0, mixTarget = mix, warmI = 0;
   function applyTheme() {
     const k = sm(0, 1, mix), A = TH.light, B = TH.dark, n = {};
     colorKeys.forEach(c => cur[c].lerpColors(A[c], B[c], k)); numKeys.forEach(c => n[c] = A[c] + (B[c] - A[c]) * k);
-    root.style.setProperty('--sky-top', '#' + cur.skyTop.getHexString()); root.style.setProperty('--sky-bot', '#' + cur.skyBot.getHexString());
+    root.style.setProperty('--sky-top', '#' + cur.skyTop.getHexString()); root.style.setProperty('--sky-mid', '#' + cur.skyMid.getHexString()); root.style.setProperty('--sky-bot', '#' + cur.skyBot.getHexString());
+    clouds.out.forEach(o => { o.m.material.color.copy(cur.cloud); o.m.material.opacity = n.cloudO * [1, .88, .76][o.l]; });
     scene.fog.color.copy(cur.fog);
     tintMats.forEach(m => { m.color.copy(cur.tint); if (m.userData.base) m.color.multiply(m.userData.base); });
     mWood.color.copy(cur.wood); mDark.color.copy(cur.wood).multiply(new THREE.Color('#5a3e2a')); mRoof.color.copy(cur.wood).multiply(new THREE.Color('#8c4b3b')); mBamboo.color.copy(cur.wood).multiply(new THREE.Color('#c9a45c'));
@@ -527,7 +554,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
     renderer.setPixelRatio(Math.min(devicePixelRatio || 1, tier === 'low' ? (Lo.w < 700 ? 1 : 1.25) : 2) * scale);
     renderer.setSize(Lo.w, Lo.h, false);
   }
-  function applyTier() { setRes(); dirty = true; }
+  function applyTier() { setRes(); clouds.out.forEach((o, i) => { o.m.visible = i < CLOUD_N[tier]; }); dirty = true; }
   function tierDown() { tier = TIERS[TIERS.indexOf(tier) - 1]; applyTier(); }
   function layout() {
     const w = Math.max(1, canvas.clientWidth), h = Math.max(1, canvas.clientHeight), a = w / h;
@@ -591,12 +618,14 @@ export function createScene({ canvas, stallBtn, onStall }) {
       updateFlags(clock, false); updateKids(clock, lastCabinX, false); steamAt(clock, false);
     }
     const p = cableAt(S.u); lastCabinX = p.x;
+    if (!reduce) updateClouds(clock);
     pivot.position.copy(p); pivot.position.y -= S.dip;
     swing.rotation.z = reduce ? 0 : S.th + Math.sin(clock * .8) * .012;
     const tx = p.x - Lo.sx, ty = p.y + Lo.up;
     if (!S.init || reduce) { S.cx = tx; S.cy = ty; distS = Lo.dist; S.init = true; }
     else { const f = 1 - Math.exp(-dt * 5); S.cx += (tx - S.cx) * f; S.cy += (ty - S.cy) * f; distS += (Lo.dist - distS) * f; }
     camera.position.set(S.cx, S.cy + distS * .1, distS); camera.lookAt(S.cx, S.cy, 0);
+    clouds.grp.position.set(S.cx * .82, S.cy * .9, 0);
     stars.position.set(S.cx, S.cy, 0); moon.position.set(S.cx + Lo.mdx, S.cy + Lo.mdy, -250); halo.position.copy(moon.position);
     settled = reduce || (Math.abs(target - S.u) < 2e-5 && Math.abs(S.uv) < 2e-4 && Math.abs(S.th) < .003 && Math.abs(S.thv) < .004 &&
       Math.abs(tx - S.cx) < .02 && Math.abs(ty - S.cy) < .02 && Math.abs(Lo.dist - distS) < .03);
@@ -629,7 +658,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
   }
   document.addEventListener('visibilitychange', () => { if (document.hidden) { cancelAnimationFrame(raf); raf = 0; } else poke(); });   // nothing renders in a hidden tab
   new ResizeObserver(layout).observe(canvas);
-  renderer.compile(scene, camera);   // build the shaders now, so the first moving frames are not measured as slow
+  applyTier(); renderer.compile(scene, camera);   // build the shaders now, so the first moving frames are not measured as slow
   ready = true; layout();
   if (/[?&]fps\b/.test(location.search)) {   // ?fps: a tiny readout of the scene's tier, frame rate and render scale, for testing on real hardware
     const hud = document.createElement('div');
