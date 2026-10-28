@@ -3,10 +3,21 @@
 
 WB_URL = "https://github.com/moloyb301-eng/wreckbox-releases/tree/windows-native"
 
+# QA work samples (pages live in qa-samples/); shown on the QA view only
+QA_SAMPLES = [("Sample bug report", "qa-samples/bug-report.html"), ("Test plan", "qa-samples/test-plan.html"), ("Test cases", "qa-samples/test-cases.html")]
+AVAIL = "Open to software roles · Ahmedabad · can join immediately"
+AVAIL_QA = "Open to QA roles, manual and automation · Ahmedabad · can join immediately"
+# Automated tests, counted 2026-10-28 from the real suites (list/collect modes; method in PROGRESS.md).
+TESTS = dict(pm=354, unigen=653, focus=46, netrisk=44, ciba=31, khaata=24)
+TEST_TOTAL = sum(TESTS.values())            # 1,152
+TEST_FLOOR = f"{TEST_TOTAL // 100 * 100:,}+"  # "1,100+": a true lower bound for headlines
+
 ROLES = {
     "all": dict(
         label="All", short="All",
         headline="Software engineer · QA · Systems · Web · AI/ML",
+        tagline="I build software, test it hard, and make it run well on cheap PCs.",
+        avail=AVAIL, cv="QA",
         summary="MCA graduate (2026) who tests software for a living, writes native C++ for weak Windows PCs, builds full-stack web apps and has trained CNN image-search models. Pick a role above and the route re-orders to what matters for it.",
         blocks=["experience", "projects"],
         jobs=["zentrax", "pheme", "technotask"],
@@ -18,7 +29,9 @@ ROLES = {
     "qa": dict(
         label="QA", short="QA",
         headline="Software QA Engineer | Manual & Automated Testing — Web, Android & Windows Desktop Applications",
-        summary="Software QA Engineer and MCA graduate with hands-on Quality Assurance (QA) experience in manual testing and automated testing of web applications, Android mobile apps and Windows desktop applications. Currently a QA Tester on an intercity cab-sharing platform, handling test planning, test cases, bug reports, and functional, regression, UI/UX and performance testing. Built 1,000+ automated test cases (Playwright, pytest, PHPUnit, Vitest) with CI/CD in GitHub Actions. Strong problem-solving skills, analytical skills, attention to detail, clear English communication skills and close teamwork with developers.",
+        tagline="I find the bugs before your users do.",
+        avail=AVAIL_QA, cv="QA",
+        summary=f"I'm a QA tester and MCA graduate (2026). At Zentrax Solutions I test an intercity cab-sharing platform, its Android app, web admin panel and APIs: I write test cases, log bugs in JIRA with clear steps to reproduce, and retest fixes before each release. In my own projects I've written {TEST_FLOOR} automated tests with Playwright and pytest, run in CI on every change.",
         blocks=["experience", "projects"],
         jobs=["zentrax", "technotask", "pheme"],
         projects=["pm", "unigen", "wreckbox", "dasvis", "focus", "netrisk", "ciba", "khaata"],
@@ -29,7 +42,9 @@ ROLES = {
     "systems": dict(
         label="Systems", short="Systems",
         headline="Software Engineer — C++20 · Windows · Direct3D 11 · Real-Time Audio & Graphics",
-        summary="Software engineer (MCA, 2026) who builds native software that stays fast on weak hardware. Rewrote a DJ-library app as a single native C++20 / Win32 / Direct2D executable (first paint in about 0.1 s, 0% idle CPU, about 43 MB of RAM) and built DasVis, a Direct3D 11 music visualizer that analyses each song's structure and runs at about 5% of one CPU core on GPUs back to feature level 10_0. Most at home where software meets devices: low-latency audio clocks over WASAPI, GPU timing and quality tiers, Windows device and radio APIs, and network protocols implemented byte for byte. Everything I ship has tests and CI.",
+        tagline="I build fast, good-looking software that still runs well on old, cheap PCs.",
+        avail=AVAIL, cv="Systems",
+        summary="Software engineer (MCA, 2026) who builds native software that stays fast on weak hardware. I rewrote a DJ-library app as a single native C++20 / Win32 / Direct2D executable (first paint in about 0.1 s, 0% idle CPU, about 43 MB of RAM) and built DasVis, a Direct3D 11 music visualizer that analyses each song's structure and runs at about 5% of one CPU core on GPUs back to feature level 10_0. I'm most at home where software meets devices: low-latency audio over WASAPI, GPU timing, Windows device and radio APIs, and network protocols implemented byte for byte. Everything I ship has tests and CI.",
         blocks=["projects", "experience"],
         jobs=["zentrax", "pheme", "technotask"],
         projects=["wreckbox", "dasvis", "unigen", "pm", "netrisk", "focus", "ciba", "khaata"],
@@ -40,7 +55,9 @@ ROLES = {
     "web": dict(
         label="Web", short="Web",
         headline="Full-Stack Developer — JavaScript/TypeScript, PHP, Python, PostgreSQL/Supabase",
-        summary="Full-stack developer with hands-on experience across PHP/CodeIgniter, the JavaScript/TypeScript ecosystem (Next.js, React) and Python (FastAPI, Flask). Built and deployed an offline-first project manager on Supabase/PostgreSQL with a Windows desktop app (Tauri), and a Next.js recipe platform with a signature motion system. Comfortable owning a feature end to end: data model, backend, UI, motion and tests.",
+        tagline="I build web apps end to end: data, backend, UI and tests.",
+        avail=AVAIL, cv="Web",
+        summary="I'm a full-stack developer who has worked in PHP/CodeIgniter, JavaScript/TypeScript (Next.js, React) and Python (FastAPI, Flask). I built and deployed an offline-first project manager on Supabase/PostgreSQL with a Windows desktop app (Tauri), and a Next.js recipe platform with a signature motion system. I'm comfortable owning a feature end to end: data model, backend, UI, motion and tests.",
         blocks=["experience", "projects"],
         jobs=["technotask", "zentrax", "pheme"],
         projects=["pm", "ciba", "focus", "khaata", "unigen", "wreckbox", "dasvis", "netrisk"],
@@ -51,7 +68,9 @@ ROLES = {
     "ai": dict(
         label="AI/ML", short="AI/ML",
         headline="Python Developer — Computer Vision (CNN Image Search) and Network Risk Modelling",
-        summary="MCA graduate who completed an IBM-partnered internship building an AI visual search engine for e-commerce (CNN feature extraction, image similarity, TensorFlow/Keras, OpenCV). Also built NetRisk AI, a home-network risk assessment tool with a per-device anomaly model that learns how often each port is open, running unattended on a 4 GB laptop. Writes tested Python (pytest, mocks) and ships with CI.",
+        tagline="I train models and ship them as tested Python.",
+        avail=AVAIL, cv="AI",
+        summary="I'm an MCA graduate. In an IBM-partnered internship I built an AI visual search engine for e-commerce: CNN feature extraction and image similarity, with TensorFlow/Keras and OpenCV. I also built NetRisk AI, a home-network risk assessment tool whose per-device anomaly model learns how often each port is open, running unattended on a 4 GB laptop. I write tested Python (pytest, mocks) and ship with CI.",
         blocks=["experience", "projects"],
         jobs=["pheme", "zentrax", "technotask"],
         projects=["netrisk", "dasvis", "wreckbox", "unigen", "pm", "focus", "ciba", "khaata"],
@@ -141,10 +160,10 @@ RELEASES = [
 
 # chart panels: only figures from the CV / READMEs
 PANELS = {
-    "tests": dict(title="Automated tests by project", unit="tests", total="1,035 automated tests across six projects",
-                  max=536, bars=[
-        ("pm", "Project Manager", 354, "354", "v2: 60 Playwright E2E + 32 API permission; v1: 18 Playwright + 244 PHPUnit"),
-        ("unigen", "Unigen Manager", 536, "536", "pytest: unit, API contract and Playwright UI tests"),
+    "tests": dict(title="Automated tests by project", unit="tests", total=f"{TEST_TOTAL:,} automated tests across six projects",
+                  max=TESTS["unigen"], bars=[
+        ("pm", "Project Manager", TESTS["pm"], f"{TESTS['pm']}", "v2: 60 Playwright E2E + 32 API permission; v1: 18 Playwright + 244 PHPUnit"),
+        ("unigen", "Unigen Manager", TESTS["unigen"], f"{TESTS['unigen']}", "pytest: unit, API contract and Playwright UI tests; 20 more hardware checks run on demand"),
         ("focus", "Focus", 46, "46", "pytest"),
         ("netrisk", "NetRisk AI", 44, "44", "unit tests with mocks"),
         ("ciba", "Ciba Library", 31, "31", "27 Vitest + 4 Playwright E2E"),
@@ -280,7 +299,7 @@ STATIONS = {
     kind="Systems · Windows tools", name="Unigen Manager",
     lead="A Wi-Fi 6 and Bluetooth manager for the Unigen USB dongle and MediaTek cards: dark UI, live charts, always-on tray widget.",
     tags=["Python", "ctypes (SetupAPI, WLAN API)", "WinRT", "pywebview + WebView2", "anime.js", "pytest", "Playwright"],
-    stats=[("33", "MB", "one .exe, no installer", 0), ("3", "s", "to move Wi-Fi between adapters", 0), ("536", "", "pytest tests", 0)],
+    stats=[("33", "MB", "one .exe, no installer", 0), ("3", "s", "to move Wi-Fi between adapters", 0), ("653", "", "pytest tests", 0)],
     links=[("Download .exe", "https://github.com/ApurvDas/unigen-manager/releases/latest/download/UnigenManager.exe"), ("Source on GitHub", "https://github.com/ApurvDas/unigen-manager")],
     shots=["unigen-wifi", "unigen-bluetooth", "unigen-speed", "unigen-traffic", "unigen-widget"],
     case=dict(
@@ -290,7 +309,7 @@ STATIONS = {
              "Reads device battery levels from Windows device properties.",
              "One dark-mode window with live charts and an always-on tray widget (pywebview + WebView2, anime.js)."],
       numbers=["One 33 MB executable; Wi-Fi moves between adapters in about 3 s."],
-      testing=["536 pytest tests: unit, API contract and Playwright UI tests in Microsoft Edge, plus 20 read-only hardware checks that run on demand against the real adapters.",
+      testing=["653 pytest tests: unit, API contract and Playwright UI tests in Microsoft Edge, plus 20 read-only hardware checks that run on demand against the real adapters.",
                "A 24-case manual test checklist for system-changing actions.",
                "Releases diagnosed from the app's own log and the Windows event log."]),
  ),
@@ -315,6 +334,7 @@ STATIONS = {
 
 JOBS = {
  "zentrax": dict(kind="Apr 2026 – Present", name="Zentrax Solutions LLP", lead="QA Tester & Product Contributor (Part-Time)",
+    links=QA_SAMPLES,
     stats=[("8", "", "backoffice defects in one test cycle (3 High)", 0)],
     bullets=["Perform manual functional, regression, exploratory and UI/UX testing of an intercity cab-sharing platform: the Android app, the web admin panel (backoffice) and its backend APIs.",
              "Reported 8 backoffice defects in one test cycle (3 High priority) covering navigation, CSV export data integrity and UI layout.",

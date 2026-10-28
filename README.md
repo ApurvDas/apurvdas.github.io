@@ -41,6 +41,9 @@ three.js and anime.js load from jsDelivr as pinned ES modules (see the import ma
 | `tools/gen/build.py` | Generator | Yes |
 | `index.html`, `data.js` | Generated output | No, regenerate |
 | `styles.css`, `main.js`, `scene.js` | Hand-written styles, behaviour, 3D scene | Yes |
+| `tools/cv/` | `build_cv.py` writes the four role CVs as HTML; `render.ps1` prints them to PDF with headless Edge | Yes, then re-render |
+| `cv/` | The four generated CV PDFs the Download CV button serves (QA, Systems, Web, AI; the All view uses QA) | No, re-render |
+| `assets/og.png` | 1200x630 link-preview image (the QA hero) | Re-shoot when the hero changes |
 | `assets/shots/` | Project screenshots (WebP) and `shots.json` (project, caption, theme) | Add a file, then list it in `shots.json` |
 | `fonts/` | Geist and Geist Mono variable fonts, Latin subset (OFL) | No |
 

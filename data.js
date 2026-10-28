@@ -24,6 +24,9 @@ export const ROLES = {
   "label": "All",
   "headline": "Software engineer · QA · Systems · Web · AI/ML",
   "summary": "MCA graduate (2026) who tests software for a living, writes native C++ for weak Windows PCs, builds full-stack web apps and has trained CNN image-search models. Pick a role above and the route re-orders to what matters for it.",
+  "tagline": "I build software, test it hard, and make it run well on cheap PCs.",
+  "avail": "Open to software roles · Ahmedabad · can join immediately",
+  "cv": "QA",
   "blocks": [
    "experience",
    "projects"
@@ -61,7 +64,10 @@ export const ROLES = {
  "qa": {
   "label": "QA",
   "headline": "Software QA Engineer | Manual & Automated Testing — Web, Android & Windows Desktop Applications",
-  "summary": "Software QA Engineer and MCA graduate with hands-on Quality Assurance (QA) experience in manual testing and automated testing of web applications, Android mobile apps and Windows desktop applications. Currently a QA Tester on an intercity cab-sharing platform, handling test planning, test cases, bug reports, and functional, regression, UI/UX and performance testing. Built 1,000+ automated test cases (Playwright, pytest, PHPUnit, Vitest) with CI/CD in GitHub Actions. Strong problem-solving skills, analytical skills, attention to detail, clear English communication skills and close teamwork with developers.",
+  "summary": "I'm a QA tester and MCA graduate (2026). At Zentrax Solutions I test an intercity cab-sharing platform, its Android app, web admin panel and APIs: I write test cases, log bugs in JIRA with clear steps to reproduce, and retest fixes before each release. In my own projects I've written 1,100+ automated tests with Playwright and pytest, run in CI on every change.",
+  "tagline": "I find the bugs before your users do.",
+  "avail": "Open to QA roles, manual and automation · Ahmedabad · can join immediately",
+  "cv": "QA",
   "blocks": [
    "experience",
    "projects"
@@ -101,7 +107,10 @@ export const ROLES = {
  "systems": {
   "label": "Systems",
   "headline": "Software Engineer — C++20 · Windows · Direct3D 11 · Real-Time Audio & Graphics",
-  "summary": "Software engineer (MCA, 2026) who builds native software that stays fast on weak hardware. Rewrote a DJ-library app as a single native C++20 / Win32 / Direct2D executable (first paint in about 0.1 s, 0% idle CPU, about 43 MB of RAM) and built DasVis, a Direct3D 11 music visualizer that analyses each song's structure and runs at about 5% of one CPU core on GPUs back to feature level 10_0. Most at home where software meets devices: low-latency audio clocks over WASAPI, GPU timing and quality tiers, Windows device and radio APIs, and network protocols implemented byte for byte. Everything I ship has tests and CI.",
+  "summary": "Software engineer (MCA, 2026) who builds native software that stays fast on weak hardware. I rewrote a DJ-library app as a single native C++20 / Win32 / Direct2D executable (first paint in about 0.1 s, 0% idle CPU, about 43 MB of RAM) and built DasVis, a Direct3D 11 music visualizer that analyses each song's structure and runs at about 5% of one CPU core on GPUs back to feature level 10_0. I'm most at home where software meets devices: low-latency audio over WASAPI, GPU timing, Windows device and radio APIs, and network protocols implemented byte for byte. Everything I ship has tests and CI.",
+  "tagline": "I build fast, good-looking software that still runs well on old, cheap PCs.",
+  "avail": "Open to software roles · Ahmedabad · can join immediately",
+  "cv": "Systems",
   "blocks": [
    "projects",
    "experience"
@@ -139,7 +148,10 @@ export const ROLES = {
  "web": {
   "label": "Web",
   "headline": "Full-Stack Developer — JavaScript/TypeScript, PHP, Python, PostgreSQL/Supabase",
-  "summary": "Full-stack developer with hands-on experience across PHP/CodeIgniter, the JavaScript/TypeScript ecosystem (Next.js, React) and Python (FastAPI, Flask). Built and deployed an offline-first project manager on Supabase/PostgreSQL with a Windows desktop app (Tauri), and a Next.js recipe platform with a signature motion system. Comfortable owning a feature end to end: data model, backend, UI, motion and tests.",
+  "summary": "I'm a full-stack developer who has worked in PHP/CodeIgniter, JavaScript/TypeScript (Next.js, React) and Python (FastAPI, Flask). I built and deployed an offline-first project manager on Supabase/PostgreSQL with a Windows desktop app (Tauri), and a Next.js recipe platform with a signature motion system. I'm comfortable owning a feature end to end: data model, backend, UI, motion and tests.",
+  "tagline": "I build web apps end to end: data, backend, UI and tests.",
+  "avail": "Open to software roles · Ahmedabad · can join immediately",
+  "cv": "Web",
   "blocks": [
    "experience",
    "projects"
@@ -179,7 +191,10 @@ export const ROLES = {
  "ai": {
   "label": "AI/ML",
   "headline": "Python Developer — Computer Vision (CNN Image Search) and Network Risk Modelling",
-  "summary": "MCA graduate who completed an IBM-partnered internship building an AI visual search engine for e-commerce (CNN feature extraction, image similarity, TensorFlow/Keras, OpenCV). Also built NetRisk AI, a home-network risk assessment tool with a per-device anomaly model that learns how often each port is open, running unattended on a 4 GB laptop. Writes tested Python (pytest, mocks) and ships with CI.",
+  "summary": "I'm an MCA graduate. In an IBM-partnered internship I built an AI visual search engine for e-commerce: CNN feature extraction and image similarity, with TensorFlow/Keras and OpenCV. I also built NetRisk AI, a home-network risk assessment tool whose per-device anomaly model learns how often each port is open, running unattended on a 4 GB laptop. I write tested Python (pytest, mocks) and ship with CI.",
+  "tagline": "I train models and ship them as tested Python.",
+  "avail": "Open to software roles · Ahmedabad · can join immediately",
+  "cv": "AI",
   "blocks": [
    "experience",
    "projects"

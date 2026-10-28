@@ -55,9 +55,10 @@ function flipRoute(R) {
   items.forEach(li => { const a = first.get(li), b = li.getBoundingClientRect(), dx = a.left - b.left, dy = a.top - b.top; if (dx || dy) li.animate([{ transform: `translate(${dx}px,${dy}px)` }, { transform: 'none' }], { duration: 520, easing: 'cubic-bezier(.23,1,.32,1)' }); });
 }
 function setHeroText(R, instant) {
-  const box = $('#hero-role'), put = () => { $('#role-headline').textContent = R.headline; const s = $('#role-summary'); s.textContent = R.summary; s.classList.remove('open'); const m = $('.more-s'); if (m) m.textContent = 'Read more'; };
+  const box = $('#hero-role'), fade = [box, $('#role-tag'), $('#role-avail'), $('.hero-cta')],
+    put = () => { $('#role-tag').textContent = R.tagline; $('#role-avail').textContent = R.avail; $$('.cv-dl').forEach(a => a.href = `cv/Apurv-Das-CV-${R.cv}.pdf`); $('#role-headline').textContent = R.headline; const s = $('#role-summary'); s.textContent = R.summary; s.classList.remove('open'); const m = $('.more-s'); if (m) m.textContent = 'Read more'; };
   if (instant || reduce) return put();
-  box.style.opacity = 0; setTimeout(() => { put(); box.style.opacity = ''; }, 140);
+  fade.forEach(e => e.style.opacity = 0); setTimeout(() => { put(); fade.forEach(e => e.style.opacity = ''); }, 140);
 }
 function markRole(r) {
   root.dataset.role = r;

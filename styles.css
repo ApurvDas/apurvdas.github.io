@@ -96,6 +96,14 @@ html.hero-roles .roles.mini { opacity: 0; pointer-events: none; }
 .hero .eyebrow { margin-bottom: 1.1rem; }
 h1 { font-size: clamp(3rem, 7.4vw, 5.5rem); font-weight: 600; line-height: 1; letter-spacing: -.045em; }
 .tag { margin-top: 1.2rem; max-width: 30ch; font-size: clamp(1.0625rem, 1.5vw, 1.25rem); line-height: 1.5; letter-spacing: -.005em; color: var(--muted); text-wrap: balance; }
+.avail { margin-top: .6rem; max-width: 34rem; text-wrap: balance; font: 500 .8125rem/1.45 var(--mono); color: var(--ink); }
+.hero-cta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 1rem; transition: opacity .2s var(--out); }
+.tag, .avail { transition: opacity .2s var(--out); }
+.samples, .links .lab { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; font: 500 .8125rem/1.4 var(--sans); }
+.samples .lab, .links .lab { font: 500 .6875rem/1.2 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.samples a { color: var(--accent); text-underline-offset: 3px; }
+.links .lab { align-self: center; margin-right: 4px; }
+html:not([data-role="qa"]) .qa-only { display: none; }   /* QA work samples: QA view only */
 .role-pick { margin-top: 1.75rem; }
 .role-pick .label { margin-bottom: .6rem; }
 .hero-role { margin-top: 1.4rem; max-width: 34rem; transition: opacity .2s var(--out); }
@@ -114,7 +122,7 @@ h1 { font-size: clamp(3rem, 7.4vw, 5.5rem); font-weight: 600; line-height: 1; le
 .hint { position: absolute; left: clamp(16px, 7vw, 120px); bottom: 28px; font: 500 .6875rem/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); transition: opacity .5s var(--out); }
 .hint.gone { opacity: 0; }
 :root:not(.js) :is(.role-pick, .roles.mini, .switch, .hint) { display: none; }   /* controls that need JavaScript */
-.js:not(.ready) .hero-role, .js:not(.ready) .route, .js:not(.ready) .flow { opacity: 0; }
+.js:not(.ready) :is(.hero-role, .route, .flow, .tag, .avail, .hero-cta) { opacity: 0; }
 .flow { transition: opacity .22s var(--out); }
 
 /* ---------- the page below the hero: transparent, so the ride shows through and between the glass panels ---------- */
@@ -176,7 +184,7 @@ h1 { font-size: clamp(3rem, 7.4vw, 5.5rem); font-weight: 600; line-height: 1; le
 .stat dd small { font: 500 .875rem/1 var(--sans); letter-spacing: 0; color: var(--accent); }
 .stat .pre { font-size: 1.4rem; color: var(--muted); }
 .links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 1.4rem; }
-.btn, .pill { display: inline-flex; align-items: center; min-height: 40px; padding: 0 16px; border: 1px solid var(--hair); border-radius: 10px; background: var(--card); color: var(--ink); font: 500 .875rem/1 var(--sans); text-decoration: none; transition: transform 160ms var(--out), background-color 160ms, border-color 160ms; }
+.btn, .pill { display: inline-flex; align-items: center; gap: 4px; min-height: 40px; padding: 0 16px; border: 1px solid var(--hair); border-radius: 10px; background: var(--card); color: var(--ink); font: 500 .875rem/1 var(--sans); text-decoration: none; transition: transform 160ms var(--out), background-color 160ms, border-color 160ms; }
 .btn:active { transform: scale(.97); }
 .btn.pri { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .pill { color: var(--muted); border-style: dashed; }

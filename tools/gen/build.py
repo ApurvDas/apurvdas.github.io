@@ -67,7 +67,7 @@ def lst(items, cls=""):
 def station(sid):
     s = STATIONS[sid]; c = s["case"]
     links = "".join(f'<a class="btn" href="{h(u)}" rel="noopener">{h(t)}<span aria-hidden="true"> ↗</span></a>' for t, u in s["links"])
-    if not s["links"]: links = '<span class="pill">Course project · source not published</span>'
+    if not s["links"]: links = '<span class="pill">Course project; source available on request.</span>'
     cs = (f'<details class="case" data-hl="{sid}"><summary><span>Case study</span></summary><div class="case-body">'
           f'<h4>Problem</h4><p>{h(c["problem"])}</p><h4>Limits</h4><p>{h(c["limits"])}</p>'
           f'<h4>What I built</h4>{lst(c["built"])}<h4>Numbers</h4>{lst(c["numbers"])}<h4>Testing</h4>{lst(c["testing"])}</div></details>')
@@ -84,10 +84,11 @@ def job(jid):
     j = JOBS[jid]
     st = f'<dl class="stats" data-hl="{jid}">{"".join(stat(x) for x in j["stats"])}</dl>' if j["stats"] else ""
     lis = "".join(f"<li>{h(b)}</li>" for b in j["bullets"])
+    ql = (f'<p class="links qa-only" data-hl="{jid}"><span class="lab">QA work samples</span>' + "".join(f'<a class="btn" href="{h(u)}">{h(t)}</a>' for t, u in j["links"]) + '</p>') if j.get("links") else ""
     more = f'<button type="button" class="more" hidden data-n="{len(j["bullets"])}" aria-expanded="false">Show all {len(j["bullets"])}</button>' if len(j["bullets"]) > 1 else ""
     return (f'<article class="station job glass" id="{jid}" data-id="{jid}" data-key="{jid}" data-node="job">'
             f'<header class="st-head" data-hl="{jid}"><p class="eyebrow node-anchor"><span class="alt-tag" data-alt></span><span class="kind">{h(j["kind"])}</span></p>'
-            f'<h3>{h(j["name"])}</h3><p class="lead">{h(j["lead"])}</p></header>{st}<ul class="bul">{lis}</ul>{more}{related(jid)}</article>')
+            f'<h3>{h(j["name"])}</h3><p class="lead">{h(j["lead"])}</p></header>{st}<ul class="bul">{lis}</ul>{more}{ql}{related(jid)}</article>')
 
 
 # ---------- contours (static, so the hero has its map without JS) ----------
@@ -227,6 +228,17 @@ def route_li(i):
     n = SHORT.get(i, NAMES[i]); return f'<li data-id="{i}"><a href="#{i}" data-hl="{i}">{h(n)}</a></li>'
 
 
+def cv_href(r): return f"cv/Apurv-Das-CV-{ROLES[r]['cv']}.pdf"
+
+
+def cv_btn(): return f'<a class="btn cv-dl" href="{cv_href("all")}" download>Download CV<span aria-hidden="true"> ↓</span></a>'
+
+
+def qa_samples_hero():
+    return ('<span class="samples qa-only"><span class="lab">QA work samples</span>'
+            + "".join(f'<a href="{h(u)}">{h(t)}</a>' for t, u in QA_SAMPLES) + '</span>')
+
+
 def build():
     A = ROLES["all"]
     exp = "".join(job(j) for j in A["jobs"])
@@ -241,7 +253,7 @@ def build():
     blocks = "".join(block[b] for b in A["blocks"])
     panels = "".join(bars_panel(p, None) for p in A["panels"])
     numbers = (f'<section class="block glass" id="numbers" data-id="numbers" data-key="numbers" data-node="section"><header class="st-head" data-hl="numbers"><p class="eyebrow node-anchor"><span class="alt-tag" data-alt></span><span class="kind">By the numbers</span></p>'
-               f'<h2 class="block-title">1,035 automated tests, and what the apps cost to run</h2><p class="lead">Test counts come from collecting the suites themselves; the other figures are from the project READMEs.</p></header>'
+               f'<h2 class="block-title">{TEST_TOTAL:,} automated tests, and what the apps cost to run</h2><p class="lead">Test counts come from collecting the suites themselves; the other figures are from the project READMEs.</p></header>'
                f'<div class="panels" data-group="panels">{panels}</div>{related("numbers", "h3")}</section>')
     releases = (f'<section class="block glass" id="releases" data-id="releases" data-key="releases" data-node="section"><header class="st-head" data-hl="releases"><p class="eyebrow node-anchor"><span class="alt-tag" data-alt></span><span class="kind">Shipping log</span></p>'
                 f'<h2 class="block-title">What I have shipped</h2><p class="lead">Releases with downloads, newest at the bottom of the timeline.</p></header>'
@@ -254,6 +266,7 @@ def build():
     summit = (f'<section class="block summit glass" id="summit" data-id="summit" data-key="summit" data-node="section"><header class="st-head" data-hl="summit"><p class="eyebrow node-anchor"><span class="alt-tag" data-alt></span><span class="kind">Top station · Nathu La · 4,310 m</span></p>'
               f'<h2 class="block-title">Summit</h2><p class="lead">Hiring for QA, systems, web or AI/ML work, or want to talk about fast software on slow hardware? Write to me.</p></header>'
               f'<div class="summit-grid"><div><p class="contact"><a class="btn pri" href="mailto:apps.apurv2000@gmail.com">apps.apurv2000@gmail.com</a>'
+              f'{cv_btn()}'
               f'<a class="btn" href="https://www.linkedin.com/in/apurv-das-bb2050150" rel="noopener">LinkedIn<span aria-hidden="true"> ↗</span></a>'
               f'<a class="btn" href="https://github.com/ApurvDas" rel="noopener">GitHub<span aria-hidden="true"> ↗</span></a></p>'
               f'<p class="loc">Ahmedabad, Gujarat, India</p>{flags_svg()}</div>{survey_sheet()}</div></section>')
@@ -264,14 +277,15 @@ def build():
     tpl = open(os.path.join(os.path.dirname(__file__), "template.html"), encoding="utf8").read()
     html = (tpl.replace("{{CONTOURS}}", hero_contours()).replace("{{ROLES_HERO}}", roles_btn("")).replace("{{ROLES_BAR}}", roles_btn(""))
             # no-JS has no role switch, so the static summary drops the "Pick a role" hint; main.js restores the full text
-            .replace("{{HEADLINE}}", h(A["headline"])).replace("{{SUMMARY}}", h(A["summary"].split(" Pick a role")[0])).replace("{{ROUTE}}", route)
+            .replace("{{HEADLINE}}", h(A["headline"])).replace("{{TAGLINE}}", h(A["tagline"])).replace("{{AVAIL}}", h(A["avail"]))
+            .replace("{{CV_BTN}}", cv_btn().replace("btn cv-dl", "btn pri cv-dl")).replace("{{QA_SAMPLES}}", qa_samples_hero()).replace("{{SUMMARY}}", h(A["summary"].split(" Pick a role")[0])).replace("{{ROUTE}}", route)
             .replace("{{BLOCKS}}", blocks).replace("{{NUMBERS}}", numbers).replace("{{RELEASES}}", releases).replace("{{SKILLS}}", skills)
             .replace("{{SUMMIT}}", summit).replace("{{MOMO_HERO}}", momo_btn("momo-3d", "▲ Veg momo", "momo-note-3d")))
     assert "{{" not in html, "unfilled template placeholder: " + html[html.index("{{"):html.index("{{") + 30]
     open(os.path.join(OUT, "index.html"), "w", encoding="utf8", newline="").write(html)
 
     # ---------- data.js ----------
-    roles = {k: dict(label=v["label"], headline=v["headline"], summary=v["summary"], blocks=v["blocks"], jobs=v["jobs"],
+    roles = {k: dict(label=v["label"], headline=v["headline"], summary=v["summary"], tagline=v["tagline"], avail=v["avail"], cv=v["cv"], blocks=v["blocks"], jobs=v["jobs"],
                      projects=v["projects"], groups=v["groups"], panels=v["panels"], primary=v["primary"]) for k, v in ROLES.items()}
     ents = {k: v for k, v in NAMES.items()}
     js = ("/* Data behind the connections. Content text lives in index.html; this file holds the graph. */\n"
