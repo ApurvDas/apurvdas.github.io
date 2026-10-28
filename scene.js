@@ -18,11 +18,11 @@ export function createScene({ canvas, stallBtn, onStall }) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
   /* Quality tiers. Slow frames first switch expensive features off (tier steps down), and only when none are left drop the resolution (q).
      high: shadows, grass, snowfall, more clouds, denser terrain. mid: outlines, medium clouds. low: today's cost plus toon shading, painted colours, a few clouds. */
-  const TIERS = ['low', 'mid', 'high'], tierQS = new URLSearchParams(location.search).get('tier');   // ?tier=low|mid|high forces one (testing)
+  const TIERS = ['low', 'mid', 'high'], tierQS = new URLSearchParams(location.search).get('tier');   // ?tier=low|mid|high pins one: no auto-detect, no step-down (testing)
   const gpuName = (() => { try { const gl = renderer.getContext(), e = gl.getExtension('WEBGL_debug_renderer_info'); return String(gl.getParameter(e ? e.UNMASKED_RENDERER_WEBGL : gl.RENDERER)); } catch { return ''; } })();
   const weakGPU = /swiftshader|llvmpipe|softpipe|basic render|(?<!U)HD Graphics (?:[2-5][0-9]{2,3})(?![0-9])/i.test(gpuName) || !renderer.capabilities.isWebGL2 || renderer.capabilities.maxTextureSize < 8192;
   let tier = TIERS.includes(tierQS) ? tierQS : weakGPU ? 'low' : (innerWidth < 700 || matchMedia('(pointer: coarse)').matches) ? 'mid' : 'high';
-  const startTier = tier, atLeast = t => TIERS.indexOf(tier) >= TIERS.indexOf(t);
+  const pinned = TIERS.includes(tierQS), startTier = tier, atLeast = t => TIERS.indexOf(tier) >= TIERS.indexOf(t);
   // adaptive render scale: drop the internal resolution while frames run under 60
   let q = 1, ft = FRAME, prevDraw = 0, pace = FRAME, chained = false, grace = 30;   // pace: 60 fps, or 30 on GPUs that can't hold 60 even at the lowest scale; grace: frames ignored after start / a tier step (shader compiles)
   let scale = 1;   // the scale actually rendered: q while moving, full resolution once the view rests
@@ -348,27 +348,76 @@ export function createScene({ canvas, stallBtn, onStall }) {
     scene.add(wl);
   }
 
-  /* ---------- pines (instanced) ---------- */
+  /* ---------- trees + greenery (instanced). counts are per tier: applyTier() sets InstancedMesh.count / visibility ---------- */
+  const counted = [], highOnly = [];   // [{ im, n: {low,mid,high}, per }]  and  meshes shown on the high tier only
+  const grassT = { value: 0 }, GRASS_X0 = -128, GRASS_X1 = -34;
   {
-    const rnd = mulberry(5), spots = [];
+    const rnd = mulberry(5), rc = mulberry(61), spots = [], d = new THREE.Object3D(), c = new THREE.Color();
     const clear = (x, z) => [[BX, 9], [MX, 9], [TX, 9]].some(([cx, r]) => Math.abs(x - cx) < 8 && z < r + 1) ||
       (x > -68 && x < -48 && z < 9) || (Math.hypot((x - LK.x) / (LK.rx + 2), (z - LK.z) / (LK.rz + 2)) < 1) || (x > TX + 6 && x < TX + 18 && z < 9) || (x > 106 && x < 120 && z < 2);
     const clusters = [-98, -40, -8, 16, 46, 70, 98, 150, 176];
-    for (let i = 0; spots.length < 26 && i < 200; i++) {
+    for (let i = 0; spots.length < 64 && i < 400; i++) {
       const cl = clusters[i % clusters.length], x = cl + (rnd() - .5) * 22, z = 3 + rnd() * 12;
       if (clear(x, z)) continue;
-      spots.push({ x, z, s: .5 + rnd() * .5, y: nearH(x, z) - .3 });
+      spots.push({ x, z, s: (.5 + rnd() * .5) * 1.35, y: nearH(x, z) - .3 });   // the first 26 are today's spots
     }
-    const cone = new THREE.ConeGeometry(1, 1, 6, 1), trunk = new THREE.CylinderGeometry(.12, .16, 1, 5);
-    const mk = geo => { const m = toon(); tintMats.push(m); return new THREE.InstancedMesh(geo, m, spots.length); };
-    const lv = [[1.7, 2.6, 1.0, '#3a574f', 0], [1.3, 2.3, 2.3, '#40605a', .25], [.85, 2.0, 3.5, '#476b64', .55]];
-    const d = new THREE.Object3D(), c = new THREE.Color();
-    lv.forEach(([r, h, yo, hex, snow]) => {
-      const im = mk(cone); scene.add(im);
-      spots.forEach((s, i) => { d.position.set(s.x, s.y + (yo + h / 2) * s.s, s.z); d.scale.set(r * s.s, h * s.s, r * s.s); d.rotation.y = i; d.updateMatrix(); im.setMatrixAt(i, d.matrix); im.setColorAt(i, c.set(hex).lerp(SNOW, snow)); });
+    // conifers: three stacked cones, varied greens, snow on the upper tiers above the snow line
+    const GREENS = ['#3b6b4d', '#47795a', '#2f5d47', '#55845a', '#3f7350'].map(h => new THREE.Color(h));
+    const cone = new THREE.ConeGeometry(1, 1, 8, 1), trunk = new THREE.CylinderGeometry(.12, .16, 1, 6);
+    const mk = (geo, n, per) => { const m = toon(); tintMats.push(m); const im = new THREE.InstancedMesh(geo, m, spots.length); im.userData.max = spots.length; counted.push({ im, n, per: per || 1 }); scene.add(im); return im; };
+    const PN = { low: 26, mid: 40, high: 64 };
+    const lv = [[1.7, 2.6, 1.0, 0, .1], [1.3, 2.3, 2.3, .25, .55], [.85, 2.0, 3.5, .55, .95]];
+    spots.forEach(sp => { sp.g = GREENS[Math.floor(rc() * GREENS.length)]; sp.snow = sm(14, 27, sp.y); });
+    lv.forEach(([r, h, yo, lift, snowK]) => {
+      const im = mk(cone, PN);
+      spots.forEach((sp, i) => { d.position.set(sp.x, sp.y + (yo + h / 2) * sp.s, sp.z); d.scale.set(r * sp.s, h * sp.s, r * sp.s); d.rotation.y = i; d.updateMatrix(); im.setMatrixAt(i, d.matrix); im.setColorAt(i, c.copy(sp.g).lerp(MEAD_B, lift * .35).lerp(SNOW, sp.snow * snowK)); });
     });
-    const tr = mk(trunk); scene.add(tr);
-    spots.forEach((s, i) => { d.position.set(s.x, s.y + .5 * s.s, s.z); d.scale.set(s.s, 1.4 * s.s, s.s); d.rotation.y = 0; d.updateMatrix(); tr.setMatrixAt(i, d.matrix); tr.setColorAt(i, c.set('#4a4038')); });
+    const tr = mk(trunk, PN);
+    spots.forEach((sp, i) => { d.position.set(sp.x, sp.y + .5 * sp.s, sp.z); d.scale.set(sp.s, 1.4 * sp.s, sp.s); d.rotation.y = 0; d.updateMatrix(); tr.setMatrixAt(i, d.matrix); tr.setColorAt(i, c.set('#5a4636')); });
+
+    // rounded, puffy broadleaf trees near the base: a trunk and a clump of three spheres each
+    const bl = [];
+    for (let i = 0; bl.length < 14 && i < 300; i++) {
+      const x = -118 + rnd() * 80, z = 4 + rnd() * 13;
+      if (clear(x, z) || bl.some(t => Math.hypot(t.x - x, t.z - z) < 6)) continue;
+      bl.push({ x, z, s: .9 + rnd() * .6, y: nearH(x, z) - .3 });
+    }
+    const BN = { low: 5, mid: 8, high: 14 }, puff = new THREE.SphereGeometry(1, 10, 8);
+    const bt = mk(trunk, BN), bp = mk(puff, BN, 3);
+    const LEAF = ['#79b254', '#8cc063', '#6aa653', '#9bc96a'].map(h => new THREE.Color(h));
+    bl.forEach((t, i) => {
+      d.position.set(t.x, t.y + .9 * t.s, t.z); d.scale.set(t.s * 1.2, 2.2 * t.s, t.s * 1.2); d.updateMatrix(); bt.setMatrixAt(i, d.matrix); bt.setColorAt(i, c.set('#6a5240'));
+      [[0, 2.7, 0, 1.55], [-.95, 2.3, .25, 1.15], [.9, 2.4, -.2, 1.2]].forEach(([px, py, pz, r], k) => {
+        d.position.set(t.x + px * t.s, t.y + py * t.s, t.z + pz * t.s); d.scale.set(r * t.s, r * t.s * .9, r * t.s); d.updateMatrix();
+        bp.setMatrixAt(i * 3 + k, d.matrix); bp.setColorAt(i * 3 + k, c.copy(LEAF[(i + k) % 4]).lerp(MEAD_B, k === 0 ? .25 : 0));
+      });
+    });
+    bt.userData.max = bp.userData.max = bl.length;
+
+    // high tier: swaying grass tufts + tiny flowers on the base meadow (wind in the vertex shader)
+    const blade = [], bc = [], W = .09, H = .85;
+    for (let k = 0; k < 3; k++) {
+      const a = k * Math.PI / 3, ca = Math.cos(a), sa = Math.sin(a);
+      [[-W, 0, 0], [W, 0, 0], [(k - 1) * .06, H * (.8 + k * .1), 0]].forEach(([x, y, z], v) => { blade.push(x * ca - z * sa, y, x * sa + z * ca); const t = v === 2 ? 1 : 0; bc.push(.5 + .75 * t, .62 + .62 * t, .42 + .2 * t); });
+    }
+    const gg = new THREE.BufferGeometry(); gg.setAttribute('position', new THREE.Float32BufferAttribute(blade, 3)); gg.setAttribute('color', new THREE.Float32BufferAttribute(bc, 3)); gg.computeVertexNormals();
+    const gm = toon({ vertexColors: true, side: THREE.DoubleSide }); tintMats.push(gm);
+    gm.onBeforeCompile = sh => {
+      sh.uniforms.uT = grassT;
+      sh.vertexShader = 'uniform float uT;\n' + sh.vertexShader.replace('#include <begin_vertex>',
+        '#include <begin_vertex>\n float sw = sin(uT * 1.8 + instanceMatrix[3].x * .45 + instanceMatrix[3].z * .3 + position.y * 2.5) + .5 * sin(uT * 3.1 + instanceMatrix[3].x * .9);\n transformed.x += sw * .09 * position.y; transformed.z += sw * .04 * position.y;');
+    };
+    const spotsG = [], flw = [];
+    for (let i = 0; spotsG.length < 1800 && i < 12000; i++) {
+      const x = GRASS_X0 + rnd() * (GRASS_X1 - GRASS_X0), z = -3 + rnd() * 24;
+      if (clear(x, z) || kidsPatch(x, z) > .12 || greenAt(x, z) < .55 || Math.abs(z + 2) < 1.6 && Math.abs(x - BX) < 10) continue;
+      spotsG.push([x, nearH(x, z) - .05, z, .7 + rnd() * .7]);
+    }
+    const gi = new THREE.InstancedMesh(gg, gm, spotsG.length); gi.frustumCulled = true;
+    spotsG.forEach(([x, y, z, k], i) => { d.position.set(x, y, z); d.scale.setScalar(k); d.rotation.y = rnd() * 6.28; d.updateMatrix(); gi.setMatrixAt(i, d.matrix); gi.setColorAt(i, c.copy(MEAD_A).lerp(MEAD_B, rnd() * .6).lerp(MEAD_D, rnd() * .5)); if (i % 6 === 0) flw.push([x + (rnd() - .5) * .3, y + .3 * k, z + (rnd() - .5) * .3, i % 12 === 0]); });
+    const fm = toon(), fi = new THREE.InstancedMesh(new THREE.SphereGeometry(.11, 6, 5), fm, flw.length); tintMats.push(fm);
+    flw.forEach(([x, y, z, yel], i) => { d.position.set(x, y, z); d.scale.setScalar(1); d.rotation.y = 0; d.updateMatrix(); fi.setMatrixAt(i, d.matrix); fi.setColorAt(i, c.set(yel ? '#f4cf4a' : '#fffaf0')); });
+    scene.add(gi, fi); highOnly.push(gi, fi);
   }
 
   /* ---------- flush merged parts ---------- */
@@ -554,7 +603,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
     renderer.setPixelRatio(Math.min(devicePixelRatio || 1, tier === 'low' ? (Lo.w < 700 ? 1 : 1.25) : 2) * scale);
     renderer.setSize(Lo.w, Lo.h, false);
   }
-  function applyTier() { setRes(); clouds.out.forEach((o, i) => { o.m.visible = i < CLOUD_N[tier]; }); dirty = true; }
+  function applyTier() { setRes(); counted.forEach(({ im, n, per }) => { im.count = Math.min(n[tier], im.userData.max ?? 1e9) * per; }); highOnly.forEach(m => { m.visible = tier === 'high'; }); clouds.out.forEach((o, i) => { o.m.visible = i < CLOUD_N[tier]; }); dirty = true; }
   function tierDown() { tier = TIERS[TIERS.indexOf(tier) - 1]; applyTier(); }
   function layout() {
     const w = Math.max(1, canvas.clientWidth), h = Math.max(1, canvas.clientHeight), a = w / h;
@@ -618,7 +667,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
       updateFlags(clock, false); updateKids(clock, lastCabinX, false); steamAt(clock, false);
     }
     const p = cableAt(S.u); lastCabinX = p.x;
-    if (!reduce) updateClouds(clock);
+    if (!reduce) { updateClouds(clock); grassT.value = clock; }
     pivot.position.copy(p); pivot.position.y -= S.dip;
     swing.rotation.z = reduce ? 0 : S.th + Math.sin(clock * .8) * .012;
     const tx = p.x - Lo.sx, ty = p.y + Lo.up;
@@ -641,7 +690,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
       if (grace > 0) grace--;
       else {
         ft += (Math.min(gap, 250) - ft) * .1;   // one hitch can't shove it too far
-        if (ft > 18.5 && tier !== 'low') { tierDown(); ft = FRAME; grace = 12; }   // under ~54 fps: switch expensive features off first (also while resting at the base)
+        if (ft > 18.5 && tier !== 'low' && !pinned) { tierDown(); ft = FRAME; grace = 12; }   // under ~54 fps: switch expensive features off first (also while resting at the base)
         else if (calm) { /* resolution only drops while moving */ }
         else if (ft > 26 && q <= Q_MIN && pace === FRAME) { pace = 1000 / 30; ft = pace; }   // still under ~38 fps at the lowest scale: a steady 30 beats a stutter
         else if (ft > 18.5 && q > Q_MIN && pace === FRAME) { q = Math.max(Q_MIN, q - .15); ft = FRAME; scale = q; setRes(); }   // then render fewer pixels while moving
