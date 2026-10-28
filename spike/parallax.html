@@ -1,0 +1,94 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>THROWAWAY SPIKE: painted parallax ropeway</title>
+<!-- Throwaway comparison spike, not linked from the site. 2D painted parallax: layered SVG ranges, haze, soft clouds, a cable curve and a swaying cabin driven by scroll. Day only. -->
+<style>
+  html, body { margin: 0; background: #b8d0f0; }
+  body { height: 700vh; font: 14px/1.4 system-ui, sans-serif; }
+  #stage { position: fixed; inset: 0; overflow: hidden; }
+  svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #note { position: fixed; left: 16px; top: 12px; z-index: 5; color: #12233f; background: #ffffffb0; padding: 6px 10px; border-radius: 8px; }
+</style>
+<div id="note">spike: painted parallax (scroll)</div>
+<div id="stage">
+  <svg id="sky" viewBox="0 0 1600 720" preserveAspectRatio="xMidYMid slice">
+    <defs>
+      <linearGradient id="gsky" x1="0" y1="0" x2="0" y2="1"><stop id="s0" offset="0" stop-color="#6fa5e4"/><stop id="s1" offset=".55" stop-color="#b6d1f0"/><stop id="s2" offset="1" stop-color="#fbe3cc"/></linearGradient>
+      <filter id="soft" x="-20%" y="-50%" width="140%" height="200%"><feGaussianBlur stdDeviation="9"/></filter>
+    </defs>
+    <rect width="1600" height="720" fill="url(#gsky)"/>
+    <g id="clouds" filter="url(#soft)" fill="#fffaf2"></g>
+  </svg>
+  <svg id="ranges" viewBox="0 0 1600 720" preserveAspectRatio="xMidYMid slice"></svg>
+  <svg id="front" viewBox="0 0 1600 720" preserveAspectRatio="xMidYMid slice">
+    <defs><linearGradient id="gground" x1="0" y1="0" x2="0" y2="1"><stop id="g0" offset="0" stop-color="#9fc765"/><stop id="g1" offset="1" stop-color="#6f9d4f"/></linearGradient></defs>
+    <path id="ground" fill="url(#gground)"/>
+    <path id="groundHi" fill="#ffffff" opacity=".18"/>
+    <path id="cable" fill="none" stroke="#243042" stroke-width="2.2"/>
+    <g id="pylons" stroke="#3b4658" stroke-width="3" stroke-linecap="round"></g>
+    <g id="cabinG"><g id="swing"><line x1="0" y1="0" x2="0" y2="26" stroke="#243042" stroke-width="3"/>
+      <rect x="-24" y="24" width="48" height="30" rx="6" fill="#2f4a6b"/><rect x="-18" y="30" width="36" height="12" rx="2" fill="#e6eef6"/><rect x="-27" y="20" width="54" height="6" rx="3" fill="#c3ccd8"/></g></g>
+  </svg>
+</div>
+<script>
+const W = 1600, H = 720, clamp = (x, a, b) => Math.min(b, Math.max(a, x)), $ = id => document.getElementById(id);
+const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t), hex = c => '#' + c.map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
+const rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+const rnd = (s => () => (s = (s * 16807) % 2147483647) / 2147483647)(7);
+// smooth ridge line: sum of sines, then a Catmull-Rom-ish path
+function ridge(base, amp, seed, f) { const pts = []; for (let x = -200; x <= W + 200; x += 40) { const y = base - amp * (.5 + .5 * Math.sin(x * f + seed) * .6 + .3 * Math.sin(x * f * 2.3 + seed * 2) + .2 * Math.sin(x * f * 5.1 + seed * 3)); pts.push([x, y]); } return pts; }
+const path = (pts, close) => { let d = `M${pts[0][0]},${pts[0][1]}`; for (let i = 1; i < pts.length - 1; i++) { const mx = (pts[i][0] + pts[i + 1][0]) / 2, my = (pts[i][1] + pts[i + 1][1]) / 2; d += `Q${pts[i][0]},${pts[i][1]} ${mx},${my}`; } return d + (close ? `L${W + 200},${H + 200}L-200,${H + 200}Z` : ''); };
+// 7 layers, far to near: haze toward blue with distance, snow caps (lighter top band) on the far ones
+const L = [
+  { base: 300, amp: 210, f: .0042, par: .03, haze: .82, snow: .85 }, { base: 350, amp: 190, f: .0055, par: .06, haze: .7, snow: .7 },
+  { base: 410, amp: 170, f: .0068, par: .1, haze: .58, snow: .5 }, { base: 470, amp: 150, f: .0085, par: .16, haze: .45, snow: .3 },
+  { base: 530, amp: 120, f: .0105, par: .24, haze: .32, snow: .12 }, { base: 590, amp: 90, f: .013, par: .34, haze: .2, snow: 0 },
+];
+const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs'); $('ranges').appendChild(defs);
+L.forEach((l, i) => {
+  l.pts = ridge(l.base, l.amp, i * 1.7 + 1, l.f); const g = document.createElementNS('http://www.w3.org/2000/svg', 'g'); g.id = 'r' + i;
+  const grad = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient'); grad.id = 'rg' + i; grad.setAttribute('x1', 0); grad.setAttribute('y1', 0); grad.setAttribute('x2', 0); grad.setAttribute('y2', 1);
+  grad.innerHTML = `<stop offset="0" class="top"/><stop offset=".45" class="mid"/><stop offset="1" class="bot"/>`; defs.appendChild(grad);
+  const p = document.createElementNS('http://www.w3.org/2000/svg', 'path'); p.setAttribute('d', path(l.pts, true)); p.setAttribute('fill', `url(#rg${i})`); g.appendChild(p);
+  const hz = document.createElementNS('http://www.w3.org/2000/svg', 'path'); hz.setAttribute('d', path(l.pts, true)); hz.setAttribute('fill', '#c9dcf7'); hz.setAttribute('opacity', 0); hz.classList.add('haze'); g.appendChild(hz);
+  $('ranges').appendChild(g); l.g = g; l.grad = grad; l.hz = hz;
+});
+// clouds: soft blobs, three depths
+const cl = $('clouds'); const CL = [];
+for (let i = 0; i < 9; i++) { const g = document.createElementNS('http://www.w3.org/2000/svg', 'g'), x = rnd() * W, y = 70 + rnd() * 230, s = .6 + rnd() * .9; g.innerHTML = [[0, 0, 70, 22], [50, 6, 55, 20], [-48, 8, 50, 18], [10, -12, 48, 20]].map(([a, b, rx, ry]) => `<ellipse cx="${a * s}" cy="${b * s}" rx="${rx * s}" ry="${ry * s}"/>`).join(''); g.setAttribute('opacity', .55 + .35 * rnd()); cl.appendChild(g); CL.push({ g, x, y, par: .02 + .06 * (1 - s / 1.5) }); }
+// the route: a gently sagging cable up the right, three pylons
+const A = [-60, 650], B = [W + 60, 190], cable = t => { const x = A[0] + (B[0] - A[0]) * t, y = A[1] + (B[1] - A[1]) * t + Math.sin(Math.PI * t) * 38; return [x, y]; };
+{ let d = ''; for (let i = 0; i <= 60; i++) { const [x, y] = cable(i / 60); d += (i ? 'L' : 'M') + x.toFixed(1) + ',' + y.toFixed(1); } $('cable').setAttribute('d', d);
+  [.22, .5, .78].forEach(t => { const [x, y] = cable(t); $('pylons').insertAdjacentHTML('beforeend', `<path d="M${x - 16},${y + 150}L${x},${y}L${x + 16},${y + 150}M${x - 9},${y + 80}L${x + 9},${y + 80}M${x - 22},${y + 6}L${x + 22},${y + 6}" fill="none"/>`); }); }
+// ground: a rolling foreground that rises to the right
+{ const g = []; for (let x = -100; x <= W + 100; x += 50) g.push([x, 640 - (x / W) * 250 + Math.sin(x * .006) * 16 + Math.sin(x * .017) * 6]); $('ground').setAttribute('d', path(g, true)); $('groundHi').setAttribute('d', path(g.map(([x, y]) => [x, y + 28]), true)); }
+// colours along the journey: Gangtok meadow -> rocky -> snowy Nathu La
+const SK = [[rgb('#6fa5e4'), rgb('#b6d1f0'), rgb('#fbe3cc')], [rgb('#7ea9de'), rgb('#bdd1ee'), rgb('#e3e6f0')]];
+const GR = [[rgb('#9fc765'), rgb('#6f9d4f')], [rgb('#a39a7e'), rgb('#7a7468')], [rgb('#eef3fc'), rgb('#b8c6e4')]];
+const ROCK = [rgb('#6f7fa3'), rgb('#8e9dc0'), rgb('#a8b4d2')], SNOW = rgb('#f2f6ff');
+let u = 0, uv = 0, th = 0, thv = 0, target = 0, last = performance.now(), camY = 0;
+function frame(now) {
+  const dt = Math.min(.05, (now - last) / 1000); last = now;
+  const p = scrollY / Math.max(1, document.documentElement.scrollHeight - innerHeight); target = p;
+  const w = 24, e = u - target, ex = Math.exp(-w * dt), c = uv + w * e; u = target + (e + c * dt) * ex; uv = (uv - w * c * dt) * ex;   // stiff, critically damped
+  const acc = (uv - (frame.pv || 0)) / Math.max(dt, .001); frame.pv = uv;
+  const thT = clamp(-(uv * .5 + acc * .004), -.12, .12); thv += (-30 * (th - thT) - 8 * thv) * dt; th += thv * dt;   // light pendulum
+  // stage colours
+  const k = u < .5 ? u / .5 : (u - .5) / .5, gi = u < .5 ? 0 : 1, gc = [mix(GR[gi][0], GR[gi + 1][0], clamp(k, 0, 1)), mix(GR[gi][1], GR[gi + 1][1], clamp(k, 0, 1))];
+  $('g0').setAttribute('stop-color', hex(gc[0])); $('g1').setAttribute('stop-color', hex(gc[1]));
+  const sk = SK.map(a => a); $('s0').setAttribute('stop-color', hex(mix(SK[0][0], SK[1][0], u))); $('s1').setAttribute('stop-color', hex(mix(SK[0][1], SK[1][1], u))); $('s2').setAttribute('stop-color', hex(mix(SK[0][2], SK[1][2], u)));
+  L.forEach((l, i) => {
+    const sn = clamp(l.snow + u * .35, 0, 1), top = mix(ROCK[0], SNOW, sn), mid = mix(ROCK[1], mix(ROCK[1], SNOW, .4), sn), bot = ROCK[2];
+    const st = l.grad.children; st[0].setAttribute('stop-color', hex(top)); st[1].setAttribute('stop-color', hex(mid)); st[2].setAttribute('stop-color', hex(bot));
+    l.hz.setAttribute('opacity', l.haze * .55);
+    l.g.setAttribute('transform', `translate(${-u * 120 * l.par * 8},${u * 60 * (1 - l.par) * 1.6 - 20 + (i % 2) * 0})`);   // far layers barely move, near ones sweep past; everything sinks a little as you climb
+  });
+  CL.forEach(c => c.g.setAttribute('transform', `translate(${c.x - u * 400 * c.par * 3},${c.y + u * 30})`));
+  $('front').firstElementChild; document.querySelectorAll('#ground,#groundHi,#cable,#pylons').forEach(el => el.setAttribute('transform', `translate(${-u * 90},${u * 70})`));
+  const [x, y] = cable(clamp(.12 + u * .8, 0, 1));   // cabin glides along the cable (cable shifts with the foreground, so add the same offset)
+  $('cabinG').setAttribute('transform', `translate(${x - u * 90},${y + u * 70})`); $('swing').setAttribute('transform', `rotate(${th * 57.3})`);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
