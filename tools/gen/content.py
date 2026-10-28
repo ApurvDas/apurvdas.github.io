@@ -31,7 +31,7 @@ ROLES = {
         headline="Software QA Engineer | Manual & Automated Testing — Web, Android & Windows Desktop Applications",
         tagline="I find the bugs before your users do.",
         avail=AVAIL_QA, cv="QA",
-        summary=f"I'm a QA tester and MCA graduate (2026). At Zentrax Solutions I test an intercity cab-sharing platform, its Android app, web admin panel and APIs: I write test cases, log bugs in JIRA with clear steps to reproduce, and retest fixes before each release. In my own projects I've written {TEST_FLOOR} automated tests with Playwright and pytest, run in CI on every change.",
+        summary=f"I'm a QA tester and MCA graduate (2026). At Zentrax Solutions I test an intercity cab-sharing platform, its Android app, web admin panel and APIs: I write test cases, log bugs in JIRA with clear steps to reproduce, and retest fixes before each release. In my own projects I've written {TEST_FLOOR} automated tests, mostly with Playwright and pytest, run in CI on every change.",
         blocks=["experience", "projects"],
         jobs=["zentrax", "technotask", "pheme"],
         projects=["pm", "unigen", "wreckbox", "dasvis", "focus", "netrisk", "ciba", "khaata"],

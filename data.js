@@ -64,7 +64,7 @@ export const ROLES = {
  "qa": {
   "label": "QA",
   "headline": "Software QA Engineer | Manual & Automated Testing — Web, Android & Windows Desktop Applications",
-  "summary": "I'm a QA tester and MCA graduate (2026). At Zentrax Solutions I test an intercity cab-sharing platform, its Android app, web admin panel and APIs: I write test cases, log bugs in JIRA with clear steps to reproduce, and retest fixes before each release. In my own projects I've written 1,100+ automated tests with Playwright and pytest, run in CI on every change.",
+  "summary": "I'm a QA tester and MCA graduate (2026). At Zentrax Solutions I test an intercity cab-sharing platform, its Android app, web admin panel and APIs: I write test cases, log bugs in JIRA with clear steps to reproduce, and retest fixes before each release. In my own projects I've written 1,100+ automated tests, mostly with Playwright and pytest, run in CI on every change.",
   "tagline": "I find the bugs before your users do.",
   "avail": "Open to QA roles, manual and automation · Ahmedabad · can join immediately",
   "cv": "QA",
