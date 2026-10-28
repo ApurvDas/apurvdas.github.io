@@ -51,10 +51,30 @@ export function createScene({ canvas, stallBtn, onStall }) {
   const PYL = [-48, -24, 0, 52, 78, 108];
   const LK = { x: MX - 9, z: 12, rx: 12, rz: 7.5 };  // Tsomgo Lake, beside the mid station
   const ridge = u => 1 - Math.abs(Math.sin(u));
-  const SNOW = new THREE.Color('#fff4e0'), ROCK_LO = new THREE.Color('#7d8998'), ROCK_HI = new THREE.Color('#a9b4c1');
+  const SNOW = new THREE.Color('#f4f7fc'), ROCK_LO = new THREE.Color('#867f88'), ROCK_HI = new THREE.Color('#b3b0ba'), rk = new THREE.Color();
   const tintMats = []; let lakeMat = null;
 
-  function terrain({ x0, x1, z0, z1, nx, nz, h, k, snowLine, bias = 0, seed, jit = .6 }) {
+  /* painted terrain: colour by altitude (Gangtok green -> meadow gold -> brown -> grey rock -> snow), patchy via smooth noise, smooth normals */
+  const vnoise = (x, z) => {   // smooth value noise, 0..1
+    const xi = Math.floor(x), zi = Math.floor(z), u = sm(0, 1, x - xi), v = sm(0, 1, z - zi);
+    const h = (i, j) => { let n = Math.imul(i, 374761393) + Math.imul(j, 668265263) | 0; n = Math.imul(n ^ n >>> 13, 1274126177); return ((n ^ n >>> 16) >>> 0) / 4294967296; };
+    return (h(xi, zi) * (1 - u) + h(xi + 1, zi) * u) * (1 - v) + (h(xi, zi + 1) * (1 - u) + h(xi + 1, zi + 1) * u) * v;
+  };
+  const fbm = (x, z) => .6 * vnoise(x, z) + .3 * vnoise(x * 2.1 + 7, z * 2.1 + 3) + .1 * vnoise(x * 4.3, z * 4.3 + 9);
+  const MEAD_A = new THREE.Color('#7fae5a'), MEAD_B = new THREE.Color('#a8c66c'), MEAD_D = new THREE.Color('#5f9150'), DRY = new THREE.Color('#bcb274'), BROWN = new THREE.Color('#8c7656');
+  const alt = (x, y, z) => y + (fbm(x * .045, z * .06) - .5) * 15;   // the altitude the colours see: world height with a patchy wobble
+  const greenAt = (x, z) => 1 - sm(-2, 7, alt(x, nearH(x, z), z));
+  const HAZE = new THREE.Color('#c3d0ec'), kidsPatch = (x, z) => 1 - sm(.5, 1, Math.hypot((x + 59) / 8.5, (z - 3.6) / 4.2));   // a snowy patch where the kids play
+  const cc = new THREE.Color();
+  function paint(c, x, y, z, ny) {
+    const a = alt(x, y, z), n1 = fbm(x * .11 + 3, z * .13);
+    c.copy(MEAD_A).lerp(MEAD_B, sm(.3, .75, n1)).lerp(MEAD_D, sm(.55, .92, 1 - ny) * .8);
+    c.lerp(DRY, sm(-1, 9, a) * .6).lerp(BROWN, sm(6, 17, a) * (.55 + .4 * (1 - ny)));
+    c.lerp(rk.copy(ROCK_LO).lerp(ROCK_HI, clamp(y / 80, 0, 1)), Math.max(sm(14, 30, a) * .85, sm(.82, .6, ny) * sm(0, 12, a)));
+    c.lerp(SNOW, sm(0, 1, (a - 22) / 12 + (ny - .62) * 1.3));
+    return c;
+  }
+  function terrain({ x0, x1, z0, z1, nx, nz, h, seed, jit = .3, hz = 0, patch }) {
     const rnd = mulberry(seed), dx = (x1 - x0) / nx, dz = (z1 - z0) / nz, P = [];
     for (let j = 0; j <= nz; j++) for (let i = 0; i <= nx; i++) {
       const edge = i === 0 || j === 0 || i === nx || j === nz;
@@ -66,16 +86,15 @@ export function createScene({ canvas, stallBtn, onStall }) {
       const a = j * w + i, b = a + 1, c = a + w, d = c + 1;
       (i + j) % 2 ? idx.push(a, c, b, b, c, d) : idx.push(a, c, d, a, d, b);
     }
-    let g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setIndex(idx);
-    g = g.toNonIndexed(); g.computeVertexNormals();
-    const p = g.attributes.position, n = g.attributes.normal, col = new Float32Array(p.count * 3), c = new THREE.Color();
-    for (let f = 0; f < p.count; f += 3) {
-      const yc = (p.getY(f) + p.getY(f + 1) + p.getY(f + 2)) / 3, xc = (p.getX(f) + p.getX(f + 1) + p.getX(f + 2)) / 3, ny = n.getY(f);
-      let s = (yc - k * gY(xc) - snowLine) / 12 + (ny - .55) * 1.5 + bias;
-      s = sm(0, 1, s);
-      c.copy(ROCK_LO).lerp(ROCK_HI, clamp(yc / 80, 0, 1)).lerp(SNOW, s).multiplyScalar(.94 + rnd() * .1);
-      for (let v = 0; v < 3; v++) col.set([c.r, c.g, c.b], (f + v) * 3);
+    const g = new THREE.BufferGeometry();   // indexed: shared vertices, so the normals are smooth
+    g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setIndex(idx); g.computeVertexNormals();
+    const n = g.attributes.normal, col = new Float32Array((P.length / 3) * 3);
+    for (let v = 0; v < P.length / 3; v++) {
+      const x = P[v * 3], y = P[v * 3 + 1], z = P[v * 3 + 2];
+      paint(cc, x, y, z, n.getY(v));
+      if (patch) cc.lerp(SNOW, patch(x, z));
+      cc.lerp(HAZE, hz);   // atmospheric perspective: every range further back is lighter and bluer
+      col.set([cc.r, cc.g, cc.b], v * 3);
     }
     g.setAttribute('color', new THREE.BufferAttribute(col, 3));
     const m = toon({ vertexColors: true });
@@ -94,11 +113,13 @@ export function createScene({ canvas, stallBtn, onStall }) {
     const t = 1 - sm(.8, 1.45, Math.hypot((x - LK.x) / LK.rx, (z - LK.z) / LK.rz));   // flat basin for the lake
     return h + (lakeY - h) * t;
   };
+  // ponytail: terrain density is fixed at the start tier (rebuilding on a step-down would cost a hitch); only high gets the finer grid
+  const dens = tier === 'high' ? 1.4 : 1;
   scene.add(
-    terrain({ x0: -300, x1: 330, z0: -160, z1: -110, nx: 110, nz: 6, h: range(1.3, .75, 18, 64, -160, -110), k: .75, snowLine: 34, seed: 11 }),
-    terrain({ x0: -280, x1: 310, z0: -102, z1: -62, nx: 104, nz: 6, h: range(4.1, .8, 12, 54, -102, -62), k: .8, snowLine: 30, seed: 22 }),
-    terrain({ x0: -250, x1: 290, z0: -58, z1: -26, nx: 96, nz: 6, h: range(7.7, .85, 6, 44, -58, -26), k: .85, snowLine: 24, seed: 33 }),
-    terrain({ x0: -170, x1: 260, z0: -24, z1: 40, nx: 190, nz: 22, h: nearH, k: 1, snowLine: -6, bias: .9, seed: 44, jit: .5 })
+    terrain({ x0: -300, x1: 330, z0: -160, z1: -110, nx: 110 * dens | 0, nz: 6, h: range(1.3, .75, 18, 64, -160, -110), seed: 11, hz: .6 }),
+    terrain({ x0: -280, x1: 310, z0: -102, z1: -62, nx: 104 * dens | 0, nz: 6, h: range(4.1, .8, 12, 54, -102, -62), seed: 22, hz: .42 }),
+    terrain({ x0: -250, x1: 290, z0: -58, z1: -26, nx: 96 * dens | 0, nz: 6, h: range(7.7, .85, 6, 44, -58, -26), seed: 33, hz: .22 }),
+    terrain({ x0: -170, x1: 260, z0: -24, z1: 40, nx: 190 * dens | 0, nz: 22 * dens | 0, h: nearH, seed: 44, jit: .25, patch: kidsPatch })
   );
   { // Tsomgo Lake: one flat disc
     const lake = new THREE.Mesh(new THREE.CircleGeometry(1, 36).rotateX(-Math.PI / 2), toon({ color: '#86bccb', transparent: true, opacity: .92 }));
@@ -144,14 +165,14 @@ export function createScene({ canvas, stallBtn, onStall }) {
   const mWood = toon({ map: plankTex, color: '#ffffff' });
   const mDark = toon({ color: '#5a3e2a' });
   const mRoof = toon({ color: '#8c4b3b' });
-  const mSnow = toon({ color: '#fff4e0' });
+  const mSnow = toon({ color: '#f4f7fc' });
   const mRock = toon({ color: '#8a929d' });
   const mBamboo = toon({ color: '#c9a45c' });
   const mMetal = toon({ color: '#2b323d' });
   const steel = toon({ color: '#4d5767' });
   const mWin = new THREE.MeshBasicMaterial({ color: '#e6eef6' });
   const woodMats = [mWood, mDark, mRoof, mRock, mBamboo];
-  tintMats.push(mSnow); mSnow.userData.base = new THREE.Color('#fff4e0');
+  tintMats.push(mSnow); mSnow.userData.base = new THREE.Color('#f4f7fc');
 
   /* ---------- cable (catenary spans): base wheel -> pylons -> mid -> pylons -> top wheel ---------- */
   const SUP = [
@@ -361,7 +382,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
     const jk = { blue: '#4f78b0', red: '#bd4a41', yellow: '#d6b44c', green: '#528f62' }, jm = {};
     Object.entries(jk).forEach(([k, v]) => jm[k] = toon({ color: v }));
     const body = new THREE.CapsuleGeometry(.2, .42, 2, 6), head = new THREE.SphereGeometry(.17, 6, 5), beanie = new THREE.SphereGeometry(.19, 6, 4, 0, Math.PI * 2, 0, Math.PI / 2), pomG = new THREE.SphereGeometry(.06, 5, 4), armG = new THREE.CapsuleGeometry(.055, .26, 2, 4).translate(0, -.16, 0);
-    const mSnowball = toon({ color: '#ffffff' }); tintMats.push(mSnowball); mSnowball.userData.base = new THREE.Color('#fff4e0');
+    const mSnowball = toon({ color: '#ffffff' }); tintMats.push(mSnowball); mSnowball.userData.base = new THREE.Color('#f4f7fc');
     function kid(x, z, jacket, hat, face) {
       const gr = new THREE.Group(), y = nearH(x, z) - .1; gr.position.set(x, y, z); gr.rotation.y = face; gr.scale.setScalar(1.25);
       const b = new THREE.Mesh(body, jm[jacket]); b.position.y = .45; gr.add(b);
