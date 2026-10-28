@@ -380,10 +380,6 @@ idle(async () => {
     A = { animate: A.animate, stagger: A.stagger, svg: A.svg, spring: A.createSpring };
     flushReveals();
     if (!reduce) {
-      const paths = $$('#contours path'), texts = $$('#contours text');
-      texts.forEach(t => t.style.opacity = 0);
-      A.animate(A.svg.createDrawable(paths), { draw: ['0 0', '0 1'], ease: 'inOutQuad', duration: 2200, delay: A.stagger(120) });
-      A.animate(texts, { opacity: [0, 1], ease: 'outQuad', duration: 800, delay: A.stagger(120, { start: 1200 }) });
       $$('.stats').forEach(s => { if (!seen.has(s) && s.getBoundingClientRect().top < innerHeight) { seen.add(s); $$('.count', s).forEach(countUp); } });
     }
   } catch (e) { console.warn('anime.js unavailable; motion disabled', e); glass.forEach(showNow); }

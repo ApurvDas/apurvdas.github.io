@@ -91,7 +91,7 @@ def job(jid):
             f'<h3>{h(j["name"])}</h3><p class="lead">{h(j["lead"])}</p></header>{st}<ul class="bul">{lis}</ul>{more}{ql}{related(jid)}</article>')
 
 
-# ---------- contours (static, so the hero has its map without JS) ----------
+# ---------- contour helpers (the route-sheet maps; the hero no longer has a contour overlay: it crossed the scene and the headline) ----------
 def smooth_path(pts, closed=False):
     n = len(pts)
     def P(i): return pts[i % n] if closed else pts[max(0, min(n - 1, i))]
@@ -100,19 +100,6 @@ def smooth_path(pts, closed=False):
         p0, p1, p2, p3 = P(k - 1), P(k), P(k + 1), P(k + 2)
         d += f"C{p1[0]+(p2[0]-p0[0])/6:.1f},{p1[1]+(p2[1]-p0[1])/6:.1f} {p2[0]-(p3[0]-p1[0])/6:.1f},{p2[1]-(p3[1]-p1[1])/6:.1f} {p2[0]:.1f},{p2[1]:.1f}"
     return d + ("Z" if closed else "")
-
-
-def hero_contours():
-    wy = lambda i, x: 330 + i * 58 + 30 * math.sin(x * .0042 + i * .8) + 14 * math.sin(x * .012 + i * 1.9)
-    out = []
-    for i in range(9):
-        pts = [(x, wy(i, x)) for x in range(-100, 1541, 100)]
-        out.append(f'<path d="{smooth_path(pts)}"/>')
-    for i in range(9):
-        lx = 800 + (i % 4) * 130
-        out.append(f'<text x="{lx}" y="{wy(i, lx) - 7:.0f}">{4300 - i * 300:,} m</text>')
-    out.append('<text class="mk" x="150" y="838">■ GANGTOK · 1,650 m</text>')
-    return "".join(out)
 
 
 def rings(cx, cy, radii, sy=.8, seed=0, n=14):
@@ -275,7 +262,7 @@ def build():
     route = "".join(route_li(i) for i in order)
     roles_btn = lambda cls: "".join(f'<button type="button" data-role="{k}" aria-pressed="{"true" if k=="all" else "false"}">{h(v["short"])}</button>' for k, v in ROLES.items())
     tpl = open(os.path.join(os.path.dirname(__file__), "template.html"), encoding="utf8").read()
-    html = (tpl.replace("{{CONTOURS}}", hero_contours()).replace("{{ROLES_HERO}}", roles_btn("")).replace("{{ROLES_BAR}}", roles_btn(""))
+    html = (tpl.replace("{{ROLES_HERO}}", roles_btn("")).replace("{{ROLES_BAR}}", roles_btn(""))
             # no-JS has no role switch, so the static summary drops the "Pick a role" hint; main.js restores the full text
             .replace("{{HEADLINE}}", h(A["headline"])).replace("{{TAGLINE}}", h(A["tagline"])).replace("{{AVAIL}}", h(A["avail"]))
             .replace("{{CV_BTN}}", cv_btn().replace("btn cv-dl", "btn pri cv-dl")).replace("{{QA_SAMPLES}}", qa_samples_hero()).replace("{{SUMMARY}}", h(A["summary"].split(" Pick a role")[0])).replace("{{ROUTE}}", route)
