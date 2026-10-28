@@ -69,7 +69,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
     return (h(xi, zi) * (1 - u) + h(xi + 1, zi) * u) * (1 - v) + (h(xi, zi + 1) * (1 - u) + h(xi + 1, zi + 1) * u) * v;
   };
   const fbm = (x, z) => .6 * vnoise(x, z) + .3 * vnoise(x * 2.1 + 7, z * 2.1 + 3) + .1 * vnoise(x * 4.3, z * 4.3 + 9);
-  const MEAD_A = new THREE.Color('#7fae5a'), MEAD_B = new THREE.Color('#a8c66c'), MEAD_D = new THREE.Color('#5f9150'), DRY = new THREE.Color('#bcb274'), BROWN = new THREE.Color('#8c7656');
+  const MEAD_A = new THREE.Color('#7fae5a'), MEAD_B = new THREE.Color('#a8c66c'), MEAD_D = new THREE.Color('#5f9150'), DRY = new THREE.Color('#bcb274'), BROWN = new THREE.Color('#a39464');
   const alt = (x, y, z) => y + (fbm(x * .045, z * .06) - .5) * 15;   // the altitude the colours see: world height with a patchy wobble
   const greenAt = (x, z) => 1 - sm(-2, 7, alt(x, nearH(x, z), z));
   const HAZE = new THREE.Color('#a9c0f0'), PX0 = -66, PX1 = -52, PZ0 = -1, PZ1 = 8;
@@ -78,11 +78,11 @@ export function createScene({ canvas, stallBtn, onStall }) {
   const cc = new THREE.Color(), WARM = new THREE.Color('#e6d27c'), COOL = new THREE.Color('#4a7f8c');
   let lastSnow = 0;
   function paint(c, x, y, z, ny) {
-    const a = alt(x, y, z), n1 = fbm(x * .11 + 3, z * .13);
+    const a = alt(x, nearH0(x, z), z), n1 = fbm(x * .11 + 3, z * .13);
     c.copy(MEAD_A).lerp(MEAD_B, sm(.3, .75, n1)).lerp(MEAD_D, sm(.55, .92, 1 - ny) * .8);
     c.lerp(DRY, sm(-1, 9, a) * .6).lerp(BROWN, sm(6, 17, a) * (.55 + .4 * (1 - ny)));
     c.lerp(rk.copy(ROCK_LO).lerp(ROCK_HI, clamp(y / 80, 0, 1)), Math.max(sm(14, 30, a) * .85, sm(.82, .6, ny) * sm(0, 12, a)));
-    lastSnow = sm(0, 1, (a - 13) / 11 + (ny - .62) * 1.3); c.lerp(SNOW_T, lastSnow);
+    lastSnow = sm(.3, .7, (a - 13) / 11 + (ny - .62) * 1.3 + .5); c.lerp(SNOW_T, lastSnow);   // a fairly crisp snow line: a wide white-to-gold blend turns grey-purple
     return c;
   }
   /* back ranges: fully baked painted colours (day + night variants, mixed by one uniform), unlit and fog-free, so the snow caps and the light / shade sides
@@ -100,6 +100,21 @@ export function createScene({ canvas, stallBtn, onStall }) {
     const sn = sm(.5, .6, hn + (fbm(x * .08 + seed, z * .1) - .5) * .4 + (ny - .6) * .6);   // snow: upper slopes, less on steep faces
     c.copy(B.rockSh).lerp(B.rockLit, lit).lerp(B.wood, (1 - sm(0, .3, hn)) * .55 * (1 - sn));
     c.lerp(bc2.copy(B.snowSh).lerp(B.snowLit, lit), sn).lerp(B.haze, Math.min(.9, hz * B.hz));
+    V.push(c.r, c.g, c.b);
+  }
+  /* forested foothills in front of the snowy ranges: the same unlit baked-vertex approach, painted as dark conifer slopes with lighter clearings, tree clumps
+     (stipple noise), valley mist pooling at the foot of each ridge, and more haze the further back the layer sits. */
+  const FT = {
+    d: { lit: '#8cb89f', sh: '#4c7d74', clear: '#a3c28c', haze: '#c3d3f4', rim: '#cfe3c4' },
+    n: { lit: '#2f5670', sh: '#0b1629', clear: '#26485a', haze: '#2f4780', rim: '#4a6d95' },
+  };
+  for (const k of ['d', 'n']) for (const q in FT[k]) FT[k][q] = new THREE.Color(FT[k][q]);
+  function bakeFoot(c, V, x, y, z, nx, ny, nz, B, F) {   // F: seed, hz (distance haze), mist: [lo, hi] local heights, mm (mist strength)
+    const nl = nx * BL.x + ny * BL.y + nz * BL.z, tree = fbm(x * .5 + F.seed, y * .6 + 3);   // textures follow x and height (the slopes are steep, so z would only streak)
+    c.copy(B.sh).lerp(B.lit, clamp(sm(-.3, .55, nl) * .4 + (tree - .5) * 1.3 + .22, 0, 1));
+    c.lerp(B.clear, sm(.6, .78, fbm(x * .07 + F.seed * 3, y * .12)) * .45);
+    c.lerp(B.rim, sm(F.mist[1], F.mist[1] + 7, y) * .22);   // the crest catches the light
+    c.lerp(B.haze, clamp(F.hz + (1 - sm(F.mist[0], F.mist[1], y)) * F.mm, 0, .95));
     V.push(c.r, c.g, c.b);
   }
   const rangeMat = new THREE.MeshBasicMaterial({ vertexColors: true, fog: false });
@@ -123,6 +138,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
       const D = [], N = [];
       for (let v = 0; v < P.length / 3; v++) {
         const x = P[v * 3], y = P[v * 3 + 1], z = P[v * 3 + 2], a = n.getX(v), b = n.getY(v), e = n.getZ(v), h0 = back.base;
+        if (back.foot) { bakeFoot(bc1, D, x, y, z, a, b, e, FT.d, back.foot); bakeFoot(bc1, N, x, y, z, a, b, e, FT.n, back.foot); continue; }
         bakeRange(bc1, D, x, y, z, a, b, e, BK.d, h0, back.A, hz, seed); bakeRange(bc1, N, x, y, z, a, b, e, BK.n, h0, back.A, hz, seed);
       }
       g.setAttribute('color', new THREE.Float32BufferAttribute(D, 3)); g.setAttribute('colorN', new THREE.Float32BufferAttribute(N, 3));
@@ -131,7 +147,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
     for (let v = 0; v < P.length / 3; v++) {
       const x = P[v * 3], y = P[v * 3 + 1], z = P[v * 3 + 2];
       paint(cc, x, y, z, n.getY(v));
-      if (near) { const nl = (n.getX(v) * -.70 + n.getY(v) * .54 + n.getZ(v) * .49), sn = lastSnow; cc.lerp(WARM, sm(.45, .95, nl) * .2 * (1 - sn)).lerp(COOL, sm(.3, -.2, nl) * .26 * (1 - sn)).lerp(SNOW_SH, sm(.35, -.1, nl) * .55 * sn); }   // painted shade shift: warmer toward the light, cooler away; snow shades blue, never warm
+      if (near) { const nl = (n.getX(v) * -.70 + n.getY(v) * .54 + n.getZ(v) * .49), sn = lastSnow; cc.lerp(WARM, sm(.45, .95, nl) * .2 * (1 - sn)).lerp(COOL, sm(.3, -.2, nl) * .14 * (1 - sn)).lerp(SNOW_SH, sm(.35, -.1, nl) * .55 * sn); }   // painted shade shift: warmer toward the light, cooler away; snow shades blue, never warm
       cc.lerp(HAZE, hz);   // atmospheric perspective: every range further back is lighter and bluer
       col.set([cc.r, cc.g, cc.b], v * 3);
     }
@@ -145,11 +161,13 @@ export function createScene({ canvas, stallBtn, onStall }) {
     return base + A * pk * (.3 + .7 * sm(0, .5, tz) - .5 * sm(.7, 1, tz));   // rises to a crest part-way back, then falls away: a real ridge line, no cliff at the far edge
   };
   const lakeY = gY(LK.x) - .42 * LK.z - .6;
-  const nearH = (x, z) => {
+  const nearH0 = (x, z) => {   // the hillside before the lake basin is dug (the painted colours follow this, so the pit around the lake does not read as a lower, muddier altitude)
     const w = clamp(Math.abs(z + 1) / 12, 0, 1);
     const b = Math.sin(x * .11 + z * .2) * .9 + Math.sin(x * .23 - z * .15) * .6 + Math.sin(x * .05 + z * .07) * 1.6;
-    const h = gY(x) - .42 * z + b * w;
-    const t = 1 - sm(.8, 1.45, Math.hypot((x - LK.x) / LK.rx, (z - LK.z) / LK.rz));   // flat basin for the lake
+    return gY(x) - .42 * z + b * w;
+  };
+  const nearH = (x, z) => {
+    const h = nearH0(x, z), t = 1 - sm(.8, 1.45, Math.hypot((x - LK.x) / LK.rx, (z - LK.z) / LK.rz));   // flat basin for the lake
     return h + (lakeY - h) * t;
   };
   // ponytail: terrain density is fixed at the start tier (rebuilding on a step-down would cost a hitch); only high gets the finer grid
@@ -157,10 +175,22 @@ export function createScene({ canvas, stallBtn, onStall }) {
   // the three back ranges hang off the camera with parallax (kx, ky = share of the camera's travel they follow), so the crests stay inside the frame at every station;
   // heights are local (no uphill slope), tuned so the tallest peaks sit below the header at 1920x863 / 1440x900 / 390x844
   const rangeMeshes = [
-    [-160, -110, 11, 1.3, 6, 34, .62, .5, .93], [-102, -62, 22, 4.1, 4, 22, .42, .38, .91], [-58, -26, 33, 7.7, 2, 14, .22, .26, .89],
+    [-160, -110, 11, 1.3, 6, 31, .62, .5, .93], [-102, -62, 22, 4.1, 4, 22, .42, .38, .91], [-58, -26, 33, 7.7, 2, 14, .22, .26, .89],
   ].map(([z0, z1, seed, rs, base, A, hz, kx, ky]) => {
     const m = terrain({ x0: -270, x1: 270, z0, z1, nx: 420, nz: 20, jit: .08, h: range(rs, base, A, z0, z1), seed, hz, back: { base, A } }); m.userData.kx = kx; m.userData.ky = ky; return m;
   });
+  // foothills: two forested ridges between the snowy ranges and the near meadow hill. Each is a rolling crest at the back that falls steeply toward the camera, far below the
+  // frame, so there is land (never sky or stars) under the mountains at every station. Screen-anchored like the ranges: crest heights are local.
+  const foot = (seed, base, A, z0, z1, drop) => (x, z) => {
+    const tz = (z - z0) / (z1 - z0);
+    return base + A * (.45 * fbm(x * .04 + seed, 5) + .3 * (.5 + .5 * Math.sin(x * .07 + seed * 2.1)) + .25 * fbm(x * .13 + seed, z * .1)) - drop * sm(.08, 1, tz);
+  };
+  [[-56, -44, 61, -2, 12, 24, .3, .24, .89, [-20, -2], .38], [-46, -34, 73, -10, 12, 24, .15, .16, .88, [-28, -9], .34], [-38, -26, 85, -19, 11, 30, .05, .1, .87, [-42, -19], .3]].forEach(([z0, z1, seed, base, A, drop, hz, kx, ky, mist, mm]) => {
+    const m = terrain({ x0: -270, x1: 270, z0, z1, nx: 360, nz: 14, jit: .08, h: foot(seed, base, A, z0, z1, drop), seed, back: { base, A, foot: { seed, hz, mist, mm } } });
+    m.userData.kx = kx; m.userData.ky = ky; rangeMeshes.push(m);
+  });
+  // draw order: everything near first, then the foothills and ranges from near to far, so the depth test throws away every back-layer pixel the hill and the nearer ridges already cover
+  rangeMeshes.forEach((m, i) => { m.renderOrder = rangeMeshes.length - i; });
   scene.add(...rangeMeshes);
   scene.add(
     terrain({ x0: -170, x1: 260, z0: -24, z1: 40, nx: 190 * dens | 0, nz: 22 * dens | 0, h: nearH, seed: 44, jit: .25, near: true })
@@ -655,31 +685,56 @@ export function createScene({ canvas, stallBtn, onStall }) {
     const p = new THREE.Points(g, m); p.frustumCulled = false; scene.add(p); return p;   // the shader moves the points, so the raw bounding sphere would be wrong
   })();
 
-  /* ---------- clouds: big soft cumulus billboards, canvas-painted (warm lit tops, cool undersides, flat bottoms) ---------- */
-  const cloudTex = [3, 17, 29].map(seed => {
-    const rnd = mulberry(seed), c = document.createElement('canvas'); c.width = 1024; c.height = 512; const g = c.getContext('2d'); g.scale(2, 2);   // drawn in 512x256 units at 2x for crisp edges
-    const yb = 196, n = 8 + (seed % 3);
-    const puffs = Array.from({ length: n }, (_, i) => { const t = (i + .5) / n, r = 34 + 62 * Math.sin(Math.PI * t) * (.7 + rnd() * .5); return { x: 50 + 412 * t + (rnd() - .5) * 20, y: yb - r * (.55 + rnd() * .25), r }; });
-    const blob = (x, y, r, rgb) => { const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, `rgba(${rgb},1)`); gr.addColorStop(.96, `rgba(${rgb},1)`); gr.addColorStop(1, `rgba(${rgb},0)`); g.fillStyle = gr; g.fillRect(x - r, y - r, 2 * r, 2 * r); };
-    puffs.forEach(p => blob(p.x, p.y, p.r, '203,213,233'));                                    // soft blue-grey body: only a thin rim of it shows under the lit tops
-    puffs.forEach(p => blob(p.x - p.r * .05, p.y - p.r * .11, p.r * .94, '255,250,241'));        // warm-lit tops
-    g.globalCompositeOperation = 'destination-out'; const fl = g.createLinearGradient(0, yb - 26, 0, yb + 14); fl.addColorStop(0, 'rgba(0,0,0,0)'); fl.addColorStop(1, 'rgba(0,0,0,1)'); g.fillStyle = fl; g.fillRect(0, yb - 26, 512, 256);   // the underside dissolves softly (no flat cut-off line)
-    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
-  });
-  const CLOUD_N = { low: 3, mid: 5, high: 7 }, CLOUD_W = 175, CLOUD_Z = -105;   // all clouds hang just in front of the far range and behind the mid one, above every crest, so no ridge can cut them
-  const clouds = (() => {
-    const rnd = mulberry(77), grp = new THREE.Group(), out = [], d = 68 + Math.abs(CLOUD_Z), half = .325 * d, off = d * .1 - 6.8;   // the camera looks slightly down, so the view's centre line is `off` below the group at this depth
-    for (let i = 0; i < 7; i++) {
-      const l = i % 3, w = [54, 44, 36][l] * (.9 + rnd() * .25);
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, w / 2), new THREE.MeshBasicMaterial({ map: cloudTex[i % 3], transparent: true, depthWrite: false, fog: false }));
-      const ys = half * (.74 + (i % 2) * .07 + rnd() * .05) - w / 8;   // whole cloud between the tallest crest (ndc ~.7) and the top of the frame; the lower part dissolves
-      m.position.z = CLOUD_Z; const o = { m, x0: (i / 6 * 2 - 1) * CLOUD_W + (rnd() - .5) * 30, y: ys - off + 5, l };
-      m.userData.o = o; grp.add(m); out.push(o);
+  /* ---------- clouds: a handful of billowy cumulus billboards, each painted on its own canvas (own size, shape, height; no two alike) ---------- */
+  // A cloud is a few domes (smooth bumps along the top) built from overlapping round puffs, each shaded lit-white at its upper left to cool blue-grey at its lower edge, so the overlaps
+  // read as billows; a row of small puffs scallops the bottom, which then dissolves softly (no flat cut-off). Drawn once at start-up.
+  const cloudTex = (seed, W, H) => {
+    const rnd = mulberry(seed), c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
+    const yb = H * .76, nd = 1 + (rnd() * 2 | 0) + (W > 600 ? 1 : 0), n = Math.round(W / 62);
+    const dome = Array.from({ length: nd }, () => ({ x: .12 + rnd() * .76, w: .08 + rnd() * .15, a: .5 + rnd() * .5 }));
+    const prof = t => Math.max(.2, dome.reduce((m, d) => Math.max(m, d.a * Math.exp(-(((t - d.x) / d.w) ** 2))), 0));
+    const puffs = [];
+    for (let i = 0; i < n; i++) { const t = .06 + .88 * (i + rnd() * .8) / n, h = prof(t) * (yb - 8), r = Math.max(H * .15, h * (.36 + rnd() * .36)); puffs.push({ x: t * W, y: yb - h + r, r }); }
+    for (let i = 0; i < n * .8; i++) { const r = H * (.13 + rnd() * .08); puffs.push({ x: W * (.08 + .84 * rnd()), y: yb - r * .55, r }); }
+    puffs.sort((a, b) => b.r - a.r);   // big domes first, small puffs in front: their lit edges stack up like billows
+    const body = g.createLinearGradient(0, yb - H * .6, 0, yb + H * .05); body.addColorStop(0, 'rgb(247,248,251)'); body.addColorStop(1, 'rgb(201,213,236)');   // a solid mass under the domes, so the puffs read as one cloud, not beads
+    g.fillStyle = body; g.beginPath(); g.moveTo(W * .05, yb + H * .05);
+    for (let k = 0; k <= 40; k++) { const t = .05 + .9 * k / 40; g.lineTo(t * W, yb - prof(t) * (yb - 8) * .62); }
+    g.lineTo(W * .95, yb + H * .05); g.fill();
+    if ('filter' in g) g.filter = 'blur(1.2px)';   // soft edges where the browser supports it
+    for (const p of puffs) {
+      const gr = g.createRadialGradient(p.x - p.r * .3, p.y - p.r * .42, p.r * .08, p.x, p.y, p.r * 1.04);
+      gr.addColorStop(0, 'rgb(255,254,249)'); gr.addColorStop(.5, 'rgb(250,249,250)'); gr.addColorStop(.82, 'rgb(222,230,244)'); gr.addColorStop(1, 'rgb(190,205,232)');
+      g.fillStyle = gr; g.beginPath(); g.arc(p.x, p.y, p.r, 0, 7); g.fill();
     }
+    g.filter = 'none'; g.globalCompositeOperation = 'destination-out';
+    const fl = g.createLinearGradient(0, yb - H * .12, 0, yb + H * .17); fl.addColorStop(0, 'rgba(0,0,0,0)'); fl.addColorStop(1, 'rgba(0,0,0,1)'); g.fillStyle = fl; g.fillRect(0, yb - H * .12, W, H);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
+  };
+  const CLOUD_Z = -105, CLOUD_KX = .82, CLOUD_KY = .94;   // one depth plane: in front of the far range, behind the middle one; the group hangs off the camera like the ranges
+  // nx = where the cloud sits across the frame (ndc x), w, h (world units), top = where its top sits (ndc y; the header ends at ~.87), seed, opacity share. Listed in the order tiers add them.
+  const CLOUDS = [[-.64, 54, 18, .84, 5, 1], [.2, 50, 16, .845, 11, .96], [.8, 34, 13.5, .83, 23, .9], [.52, 20, 10, .78, 31, .94], [-.28, 22, 9.5, .735, 47, .86]];
+  const CLOUD_N = { low: 3, mid: 4, high: 5 };
+  const clouds = (() => {
+    const grp = new THREE.Group(), out = [];
+    CLOUDS.forEach(([nx, w, h, top, seed, k]) => {
+      const W = w > 40 ? 768 : 512, m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: cloudTex(seed, W, Math.round(W * h / w)), transparent: true, depthWrite: false, fog: false }));
+      m.position.z = CLOUD_Z; grp.add(m); out.push({ m, nx, w, h, top, k });
+    });
     scene.add(grp); return { grp, out };
   })();
   // clouds do not drift on their own: a drift would only run while something else keeps the loop alive (they would stop and start), and a catch-up after idle would jump
-  clouds.out.forEach(o => { o.m.position.x = o.x0; o.m.position.y = o.y; });
+  // Screen-anchored: each cloud keeps its place across the frame (a little parallax from the camera), shrinks if the frame is narrower than it, stays inside the side margins, and keeps its top under the
+  // header at every station and framing. On portrait screens only the first two are shown (one or two clouds fill the sky there).
+  const placeClouds = () => {
+    const den = (distS + Math.abs(CLOUD_Z)) * .325, hw = den * camera.aspect;
+    clouds.out.forEach((o, i) => {
+      const k = camera.aspect >= 1 ? Math.min(1, hw / 125) : Math.min(1, 1.05 * hw / o.w), lim = Math.max(0, .9 - o.w * k / 2 / hw);
+      o.m.visible = i < CLOUD_N[tier] && (camera.aspect >= 1 || i < 2); o.m.scale.setScalar(k);
+      o.m.position.x = clamp(o.nx, -lim, lim) * hw + S.cx * .1;
+      o.m.position.y = o.top * den - o.h * k / 2 + (1 - CLOUD_KY) * S.cy - .1 * Math.abs(CLOUD_Z);
+    });
+  };
 
   /* ---------- theme (cross-faded) ---------- */
   const C = o => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, typeof v === 'string' ? new THREE.Color(v) : v]));
@@ -694,7 +749,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
     const k = sm(0, 1, mix), A = TH.light, B = TH.dark, n = {};
     colorKeys.forEach(c => cur[c].lerpColors(A[c], B[c], k)); numKeys.forEach(c => n[c] = A[c] + (B[c] - A[c]) * k);
     root.style.setProperty('--sky-top', '#' + cur.skyTop.getHexString()); root.style.setProperty('--sky-mid', '#' + cur.skyMid.getHexString()); root.style.setProperty('--sky-bot', '#' + cur.skyBot.getHexString());
-    clouds.out.forEach(o => { o.m.material.color.copy(cur.cloud); o.m.material.opacity = n.cloudO * [1, .88, .76][o.l]; });
+    clouds.out.forEach(o => { o.m.material.color.copy(cur.cloud); o.m.material.opacity = n.cloudO * o.k; });
     scene.fog.color.copy(cur.fog);
     tintMats.forEach(m => { m.color.copy(cur.tint); if (m.userData.base) m.color.multiply(m.userData.base); if (m.userData.dim) m.color.multiplyScalar(1 - m.userData.dim * k); if (m.userData.night) m.color.set(0xffffff).lerp(m.userData.night, k); });
     mWood.color.copy(cur.wood); mDark.color.copy(cur.wood).multiply(new THREE.Color('#5a3e2a')); mRoof.color.copy(cur.wood).multiply(new THREE.Color('#8c4b3b')); mBamboo.color.copy(cur.wood).multiply(new THREE.Color('#c9a45c'));
@@ -779,7 +834,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
     else { const f = 1 - Math.exp(-dt * 5); S.ox += (Lo.sx - S.ox) * f; S.oy += (Lo.up - S.oy) * f; distS += (Lo.dist - distS) * f; }
     S.cx = p.x - S.ox; S.cy = p.y + S.oy;   // locked to the cabin
     camera.position.set(S.cx, S.cy + distS * .1, distS); camera.lookAt(S.cx, S.cy, 0);
-    clouds.grp.position.set(S.cx * .82, S.cy * .9, 0);
+    clouds.grp.position.set(S.cx * CLOUD_KX, S.cy * CLOUD_KY, 0); placeClouds();
     rangeMeshes.forEach(m => m.position.set(S.cx * m.userData.kx, S.cy * m.userData.ky, 0));
     stars.position.set(S.cx, S.cy, 0); moon.position.set(S.cx + Lo.mdx, S.cy + Lo.mdy, -250); halo.position.copy(moon.position);
     settled = reduce || (Math.abs(target - S.u) < 2e-5 && Math.abs(S.uv) < 2e-4 && Math.abs(S.th) < .003 && Math.abs(S.thv) < .004 &&

@@ -65,7 +65,7 @@ button { font: inherit; color: inherit; }
 html.past-hero .scrim { opacity: 0; visibility: hidden; transition: opacity .6s var(--out), visibility 0s .6s; }
 .scrim { position: fixed; inset: 0; z-index: 3; pointer-events: none; transition: opacity .6s var(--out), visibility 0s;
   /* just a short, neutral veil behind the text column; a soft halo on the text itself (below) carries the rest of the legibility */
-  background: linear-gradient(90deg, color-mix(in srgb, var(--bg) 58%, transparent) 0%, color-mix(in srgb, var(--bg) 34%, transparent) 26%, transparent 46%); }
+  background: linear-gradient(90deg, color-mix(in srgb, var(--bg) 64%, transparent) 0%, color-mix(in srgb, var(--bg) 44%, transparent) 28%, transparent 50%); }
 .hero-in { text-shadow: 0 0 14px color-mix(in srgb, var(--bg) 80%, transparent), 0 0 3px color-mix(in srgb, var(--bg) 55%, transparent); }
 
 /* ---------- top bar ---------- */
@@ -327,7 +327,7 @@ body.hl .station.lit { opacity: 1; }
   .hint { left: 16px; }
   .js .role-summary:not(.open) { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
   .js .more-s { display: inline-block; margin-top: .4rem; min-height: 32px; padding: 0; border: 0; background: none; color: var(--accent); font: 500 .8125rem/1 var(--sans); cursor: pointer; }
-  .scrim { background: linear-gradient(180deg, color-mix(in srgb, var(--bg) 56%, transparent) 0%, color-mix(in srgb, var(--bg) 40%, transparent) 40%, transparent 68%); }
+  .scrim { background: linear-gradient(180deg, color-mix(in srgb, var(--bg) 56%, transparent) 0%, color-mix(in srgb, var(--bg) 46%, transparent) 40%, color-mix(in srgb, var(--bg) 40%, transparent) 75%, color-mix(in srgb, var(--bg) 22%, transparent) 100%); }
   .momo-map .long { display: none; }
   .stats { gap: 14px 20px; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); }
   .stat dd { font-size: 2rem; }
