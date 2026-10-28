@@ -28,6 +28,14 @@ export function createScene({ canvas, stallBtn, onStall }) {
   let scale = 1;   // the scale actually rendered: q while moving, full resolution once the view rests
   const Q_MIN = .7;
   renderer.setClearColor(0x000000, 0);
+  renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.NoToneMapping;   // flat painted colours: no tone curve
+  // toon ramp: shadow / three lit bands with soft edges (a 64-texel ramp read with linear filtering, so the band edges don't alias)
+  const grad = (() => {
+    const S = (x, a, b) => sm(a, b, x), d = new Uint8Array(64);
+    for (let i = 0; i < 64; i++) { const nl = (i + .5) / 32 - 1; d[i] = 255 * (.55 * S(nl, .02, .1) + .23 * S(nl, .3, .4) + .13 * S(nl, .55, .65) + .09 * S(nl, .78, .88)); }
+    const t = new THREE.DataTexture(d, 64, 1, THREE.RedFormat); t.minFilter = t.magFilter = THREE.LinearFilter; t.generateMipmaps = false; t.needsUpdate = true; return t;
+  })();
+  const toon = o => new THREE.MeshToonMaterial({ gradientMap: grad, ...o });
   const scene = new THREE.Scene();
   scene.fog = new THREE.Fog(0xe8eef4, 45, 260);
   const camera = new THREE.PerspectiveCamera(36, 1, 1, 700);
@@ -43,7 +51,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
   const PYL = [-48, -24, 0, 52, 78, 108];
   const LK = { x: MX - 9, z: 12, rx: 12, rz: 7.5 };  // Tsomgo Lake, beside the mid station
   const ridge = u => 1 - Math.abs(Math.sin(u));
-  const SNOW = new THREE.Color('#f6f9fc'), ROCK_LO = new THREE.Color('#7d8998'), ROCK_HI = new THREE.Color('#a9b4c1');
+  const SNOW = new THREE.Color('#fff4e0'), ROCK_LO = new THREE.Color('#7d8998'), ROCK_HI = new THREE.Color('#a9b4c1');
   const tintMats = []; let lakeMat = null;
 
   function terrain({ x0, x1, z0, z1, nx, nz, h, k, snowLine, bias = 0, seed, jit = .6 }) {
@@ -70,7 +78,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
       for (let v = 0; v < 3; v++) col.set([c.r, c.g, c.b], (f + v) * 3);
     }
     g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-    const m = new THREE.MeshLambertMaterial({ vertexColors: true });
+    const m = toon({ vertexColors: true });
     tintMats.push(m); return new THREE.Mesh(g, m);
   }
   const range = (seed, k, base, A, z0, z1) => (x, z) => {
@@ -93,7 +101,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
     terrain({ x0: -170, x1: 260, z0: -24, z1: 40, nx: 190, nz: 22, h: nearH, k: 1, snowLine: -6, bias: .9, seed: 44, jit: .5 })
   );
   { // Tsomgo Lake: one flat disc
-    const lake = new THREE.Mesh(new THREE.CircleGeometry(1, 36).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: '#8fb4c9', transparent: true, opacity: .92 }));
+    const lake = new THREE.Mesh(new THREE.CircleGeometry(1, 36).rotateX(-Math.PI / 2), toon({ color: '#86bccb', transparent: true, opacity: .92 }));
     lake.scale.set(LK.rx * .92, 1, LK.rz * .92); lake.position.set(LK.x, lakeY + .1, LK.z); scene.add(lake); lakeMat = lake.material;
   }
 
@@ -133,17 +141,17 @@ export function createScene({ canvas, stallBtn, onStall }) {
     }
     const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; return t;
   })();
-  const mWood = new THREE.MeshLambertMaterial({ map: plankTex, color: '#ffffff' });
-  const mDark = new THREE.MeshLambertMaterial({ color: '#5a3e2a' });
-  const mRoof = new THREE.MeshLambertMaterial({ color: '#8c4b3b' });
-  const mSnow = new THREE.MeshLambertMaterial({ color: '#f7fafd' });
-  const mRock = new THREE.MeshLambertMaterial({ color: '#8a929d' });
-  const mBamboo = new THREE.MeshLambertMaterial({ color: '#c9a45c' });
-  const mMetal = new THREE.MeshLambertMaterial({ color: '#2b323d' });
-  const steel = new THREE.MeshLambertMaterial({ color: '#4d5767' });
+  const mWood = toon({ map: plankTex, color: '#ffffff' });
+  const mDark = toon({ color: '#5a3e2a' });
+  const mRoof = toon({ color: '#8c4b3b' });
+  const mSnow = toon({ color: '#fff4e0' });
+  const mRock = toon({ color: '#8a929d' });
+  const mBamboo = toon({ color: '#c9a45c' });
+  const mMetal = toon({ color: '#2b323d' });
+  const steel = toon({ color: '#4d5767' });
   const mWin = new THREE.MeshBasicMaterial({ color: '#e6eef6' });
   const woodMats = [mWood, mDark, mRoof, mRock, mBamboo];
-  tintMats.push(mSnow);
+  tintMats.push(mSnow); mSnow.userData.base = new THREE.Color('#fff4e0');
 
   /* ---------- cable (catenary spans): base wheel -> pylons -> mid -> pylons -> top wheel ---------- */
   const SUP = [
@@ -164,7 +172,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
   const uAtX = x => { let i = 1; while (i < cp.length - 1 && cp[i].x < x) i++; return (cum[i - 1] + (cum[i] - cum[i - 1]) * (x - cp[i - 1].x) / (cp[i].x - cp[i - 1].x)) / CL; };
   const cableAt = u => { const s = clamp(u, 0, 1) * CL; let i = 1; while (i < cum.length - 1 && cum[i] < s) i++; const t = (s - cum[i - 1]) / (cum[i] - cum[i - 1]); return cp[i - 1].clone().lerp(cp[i], t); };
   const cableY = x => cableAt(uAtX(x)).y;
-  scene.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(cp, false, 'centripetal'), cp.length * 2, .07, 5), new THREE.MeshLambertMaterial({ color: '#232b37' })));
+  scene.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(cp, false, 'centripetal'), cp.length * 2, .07, 5), toon({ color: '#232b37' })));
 
   /* ---------- lattice pylons: 4 tapered legs, ring + X braces, cross-arm, sheave ---------- */
   {
@@ -213,7 +221,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
       g.font = `700 ${size}px Geist, system-ui, "Segoe UI", sans-serif`; g.fillText(text, w / 2, h / 2 + 6, w - 70);
       tex.needsUpdate = true;
     };
-    draw(); signs.push(draw); return new THREE.MeshLambertMaterial({ map: tex });
+    draw(); signs.push(draw); return toon({ map: tex });
   }
   document.fonts?.ready.then(() => { signs.forEach(f => f()); poke(); });
 
@@ -288,8 +296,8 @@ export function createScene({ canvas, stallBtn, onStall }) {
     // bamboo steamer: two tiers + a few momos
     const tier = new THREE.CylinderGeometry(.5, .5, .28, 12);
     for (let i = 0; i < 2; i++) { const t = new THREE.Mesh(tier, mBamboo); t.position.set(SX - .7, SG + 1.45 + i * .3, SZ + 1.0); scene.add(t); }
-    const momoG = new THREE.SphereGeometry(.13, 6, 4), mMomo = new THREE.MeshLambertMaterial({ color: '#f4efe6' }), mom = new THREE.InstancedMesh(momoG, mMomo, 5), d = new THREE.Object3D();
-    tintMats.push(mMomo);
+    const momoG = new THREE.SphereGeometry(.13, 6, 4), mMomo = toon({ color: '#f4efe6' }), mom = new THREE.InstancedMesh(momoG, mMomo, 5), d = new THREE.Object3D();
+    tintMats.push(mMomo); mMomo.userData.base = new THREE.Color('#f6efe2');
     [[0, 0], [.22, .1], [-.2, .12], [.08, -.22], [-.12, -.18]].forEach(([a, b], i) => { d.position.set(SX - .7 + a, SG + 1.66, SZ + 1.0 + b); d.scale.set(1, .7, 1); d.updateMatrix(); mom.setMatrixAt(i, d.matrix); });
     scene.add(mom);
     // steam wisps
@@ -307,9 +315,9 @@ export function createScene({ canvas, stallBtn, onStall }) {
   /* ---------- boundary marker stone + fence along the ridge (decorative) ---------- */
   {
     const bx = 114, bz = -4.2, gy = nearH(bx, bz);
-    const stone = new THREE.Mesh(new THREE.CylinderGeometry(.32, .55, 2.3, 4).rotateY(Math.PI / 4), new THREE.MeshLambertMaterial({ color: '#d3d8de' })); stone.position.set(bx, gy + 1.0, bz);
-    const cap = new THREE.Mesh(new THREE.CylinderGeometry(.05, .32, .35, 4).rotateY(Math.PI / 4), new THREE.MeshLambertMaterial({ color: '#8b95a3' })); cap.position.set(bx, gy + 2.3, bz);
-    scene.add(stone, cap); tintMats.push(stone.material);
+    const stone = new THREE.Mesh(new THREE.CylinderGeometry(.32, .55, 2.3, 4).rotateY(Math.PI / 4), toon({ color: '#d3d8de' })); stone.position.set(bx, gy + 1.0, bz);
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(.05, .32, .35, 4).rotateY(Math.PI / 4), toon({ color: '#8b95a3' })); cap.position.set(bx, gy + 2.3, bz);
+    scene.add(stone, cap); tintMats.push(stone.material); stone.material.userData.base = new THREE.Color('#d8d3c8');
     const pts = [], posts = [];
     for (let x = 120; x <= 158; x += 3.2) { const y = nearH(x, -9); posts.push([x, y]); pts.push([x, y]); }
     posts.forEach(([x, y]) => add('dark', .16, 1.5, .16, x, y + .65, -9));
@@ -331,7 +339,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
       spots.push({ x, z, s: .5 + rnd() * .5, y: nearH(x, z) - .3 });
     }
     const cone = new THREE.ConeGeometry(1, 1, 6, 1), trunk = new THREE.CylinderGeometry(.12, .16, 1, 5);
-    const mk = geo => { const m = new THREE.MeshLambertMaterial({ flatShading: true }); tintMats.push(m); return new THREE.InstancedMesh(geo, m, spots.length); };
+    const mk = geo => { const m = toon(); tintMats.push(m); return new THREE.InstancedMesh(geo, m, spots.length); };
     const lv = [[1.7, 2.6, 1.0, '#3a574f', 0], [1.3, 2.3, 2.3, '#40605a', .25], [.85, 2.0, 3.5, '#476b64', .55]];
     const d = new THREE.Object3D(), c = new THREE.Color();
     lv.forEach(([r, h, yo, hex, snow]) => {
@@ -344,16 +352,16 @@ export function createScene({ canvas, stallBtn, onStall }) {
 
   /* ---------- flush merged parts ---------- */
   [['wood', mWood, 1], ['dark', mDark], ['roof', mRoof], ['snow', mSnow], ['rock', mRock], ['win', mWin]].forEach(([k, m, uv]) => { if (L[k].length) scene.add(new THREE.Mesh(merge(L[k], !!uv), m)); });
-  tintMats.push(mRock);
+  tintMats.push(mRock); mRock.userData.base = new THREE.Color('#a39a8d');
 
   /* ---------- kids playing in the snow under the cable ---------- */
   const kids = [];
   {
-    const skin = new THREE.MeshLambertMaterial({ color: '#e9bd98' }), pom = new THREE.MeshLambertMaterial({ color: '#f4f1ea' });
+    const skin = toon({ color: '#e9bd98' }), pom = toon({ color: '#f4f1ea' });
     const jk = { blue: '#4f78b0', red: '#bd4a41', yellow: '#d6b44c', green: '#528f62' }, jm = {};
-    Object.entries(jk).forEach(([k, v]) => jm[k] = new THREE.MeshLambertMaterial({ color: v }));
+    Object.entries(jk).forEach(([k, v]) => jm[k] = toon({ color: v }));
     const body = new THREE.CapsuleGeometry(.2, .42, 2, 6), head = new THREE.SphereGeometry(.17, 6, 5), beanie = new THREE.SphereGeometry(.19, 6, 4, 0, Math.PI * 2, 0, Math.PI / 2), pomG = new THREE.SphereGeometry(.06, 5, 4), armG = new THREE.CapsuleGeometry(.055, .26, 2, 4).translate(0, -.16, 0);
-    const mSnowball = new THREE.MeshLambertMaterial({ color: '#ffffff' }); tintMats.push(mSnowball);
+    const mSnowball = toon({ color: '#ffffff' }); tintMats.push(mSnowball); mSnowball.userData.base = new THREE.Color('#fff4e0');
     function kid(x, z, jacket, hat, face) {
       const gr = new THREE.Group(), y = nearH(x, z) - .1; gr.position.set(x, y, z); gr.rotation.y = face; gr.scale.setScalar(1.25);
       const b = new THREE.Mesh(body, jm[jacket]); b.position.y = .45; gr.add(b);
@@ -375,7 +383,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
     // snowman beside the builder
     const sx = -56.3, sz = 4.1, sy = nearH(sx, sz) - .1, snowman = new THREE.Group();
     [[.42, .3], [.3, .84], [.22, 1.28]].forEach(([r, yy]) => { const s = new THREE.Mesh(new THREE.SphereGeometry(r, 7, 5), mSnowball); s.position.y = yy; snowman.add(s); });
-    const nose = new THREE.Mesh(new THREE.ConeGeometry(.04, .2, 4), new THREE.MeshLambertMaterial({ color: '#e0762a' })); nose.rotation.x = Math.PI / 2; nose.position.set(0, 1.3, .24); snowman.add(nose);
+    const nose = new THREE.Mesh(new THREE.ConeGeometry(.04, .2, 4), toon({ color: '#e0762a' })); nose.rotation.x = Math.PI / 2; nose.position.set(0, 1.3, .24); snowman.add(nose);
     snowman.position.set(sx, sy, sz); scene.add(snowman);
   }
   function updateKids(t, cabinX, still) {
@@ -405,7 +413,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
   }
 
   /* ---------- cabin ---------- */
-  const mBody = new THREE.MeshLambertMaterial({ color: '#2f4a6b' }), mCRoof = new THREE.MeshLambertMaterial({ color: '#c3ccd8' }), mCDark = new THREE.MeshLambertMaterial({ color: '#2a3340' });
+  const mBody = toon({ color: '#2f4a6b' }), mCRoof = toon({ color: '#c3ccd8' }), mCDark = toon({ color: '#2a3340' });
   const pivot = new THREE.Group(), swing = new THREE.Group(); pivot.add(swing); scene.add(pivot);
   const cbox = (w, h, d, m, y, x = 0) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, 0); swing.add(o); return o; };
   cbox(.5, .36, .42, mCDark, -.1); cbox(.12, 1.3, .12, mCDark, -.85);
@@ -435,7 +443,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
     strings.forEach(s => scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(Array.from({ length: 21 }, (_, i) => strAt(s, i / 20))), lm)));
   }
   const NF = strings.reduce((a, s) => a + s.n, 0);
-  const flags = new THREE.InstancedMesh(new THREE.PlaneGeometry(.85, .6).translate(0, -.3, 0), new THREE.MeshLambertMaterial({ side: THREE.DoubleSide }), NF);
+  const flags = new THREE.InstancedMesh(new THREE.PlaneGeometry(.85, .6).translate(0, -.3, 0), toon({ side: THREE.DoubleSide }), NF);
   scene.add(flags);
   { let k0 = 0; strings.forEach(s => { for (let i = 0; i < s.n; i++) flags.setColorAt(k0 + i, new THREE.Color(['#4f78b0', '#eef0f2', '#bd4a41', '#528f62', '#d6b44c'][i % 5])); k0 += s.n; }); }
   const fd = new THREE.Object3D();
@@ -468,7 +476,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
   /* ---------- theme (cross-faded) ---------- */
   const C = o => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, typeof v === 'string' ? new THREE.Color(v) : v]));
   const TH = {
-    light: C({ skyTop: '#c4d2e1', skyBot: '#eaf0f5', fog: '#e6ecf2', tint: '#ffffff', wood: '#ffffff', hemiSky: '#f4f8fc', hemiGnd: '#aebccb', hemiI: 2.3, dirC: '#ffffff', dirI: 1.05, win: '#e6eef6', glow: 0, warm: 0, stars: 0, moon: 0, dx: -40, dy: 60, dz: 45 }),
+    light: C({ skyTop: '#c4d2e1', skyBot: '#eaf0f5', fog: '#e6ecf2', tint: '#ffffff', wood: '#ffffff', hemiSky: '#d9e5f6', hemiGnd: '#9aaed6', hemiI: 1.95, dirC: '#ffe2b8', dirI: 2.1, win: '#e6eef6', glow: 0, warm: 0, stars: 0, moon: 0, dx: -55, dy: 42, dz: 38 }),
     dark: C({ skyTop: '#050a1a', skyBot: '#18264a', fog: '#162243', tint: '#6c80b8', wood: '#9aa3c0', hemiSky: '#4b61a0', hemiGnd: '#0b1226', hemiI: 1.15, dirC: '#a9c0ff', dirI: 1.7, win: '#ffc77a', glow: 55, warm: 60, stars: 1, moon: 1, dx: 50, dy: 60, dz: 30 }),
   };
   const colorKeys = ['skyTop', 'skyBot', 'fog', 'tint', 'wood', 'hemiSky', 'hemiGnd', 'dirC', 'win'], numKeys = ['hemiI', 'dirI', 'glow', 'warm', 'stars', 'moon', 'dx', 'dy', 'dz'];
@@ -479,11 +487,11 @@ export function createScene({ canvas, stallBtn, onStall }) {
     colorKeys.forEach(c => cur[c].lerpColors(A[c], B[c], k)); numKeys.forEach(c => n[c] = A[c] + (B[c] - A[c]) * k);
     root.style.setProperty('--sky-top', '#' + cur.skyTop.getHexString()); root.style.setProperty('--sky-bot', '#' + cur.skyBot.getHexString());
     scene.fog.color.copy(cur.fog);
-    tintMats.forEach(m => { if (!m.userData.keep) m.color.copy(cur.tint); });
+    tintMats.forEach(m => { m.color.copy(cur.tint); if (m.userData.base) m.color.multiply(m.userData.base); });
     mWood.color.copy(cur.wood); mDark.color.copy(cur.wood).multiply(new THREE.Color('#5a3e2a')); mRoof.color.copy(cur.wood).multiply(new THREE.Color('#8c4b3b')); mBamboo.color.copy(cur.wood).multiply(new THREE.Color('#c9a45c'));
     hemi.color.copy(cur.hemiSky); hemi.groundColor.copy(cur.hemiGnd); hemi.intensity = n.hemiI;
     dir.color.copy(cur.dirC); dir.intensity = n.dirI; dir.position.set(n.dx, n.dy, n.dz);
-    lakeMat && lakeMat.color.set('#8fb4c9').lerp(new THREE.Color('#27406a'), k);
+    lakeMat && lakeMat.color.set('#86bccb').lerp(new THREE.Color('#27406a'), k);
     mWin.color.copy(cur.win); glow.intensity = n.glow; warmI = n.warm;
     glow.visible = n.glow > .01; warm.visible = n.warm > .01;   // unlit point lights still cost every pixel; leave them out by day
     stars.material.opacity = n.stars * .85; stars.visible = n.stars > .01;
