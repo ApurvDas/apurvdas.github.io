@@ -51,7 +51,9 @@ button { font: inherit; color: inherit; }
 /* ---------- background layers (hero) ---------- */
 .sky { position: fixed; inset: 0; z-index: 0; background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-mid) 48%, var(--sky-bot) 86%); }
 .cam { position: fixed; inset: 0; z-index: 1; pointer-events: none; }
-.cam canvas { display: block; width: 100%; height: 100%; border-radius: inherit; }
+.cam canvas { display: block; width: 100%; height: 100%; border-radius: inherit; opacity: 0; transition: opacity .5s var(--out); }   /* transparent until the scene's start-up probe has picked its quality, so nothing visible changes afterwards */
+.cam canvas.on { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .cam canvas { transition: none; } }
 /* paper grain + a faint warm vignette over the painting: one static layer, no blend mode, so it costs the live canvas nothing.
    The grain is a tiny pre-rendered PNG tile: an SVG feTurbulence tile delayed the first frames enough to make the hero's entrance flaky. */
 .cam::after { content: ""; position: absolute; inset: 0; opacity: .19; pointer-events: none;
@@ -60,10 +62,7 @@ button { font: inherit; color: inherit; }
 :root[data-theme="dark"] .cam::after { opacity: .12; }
 .cam[data-mode="off"] { display: none; }   /* only when WebGL fails */
 .cam-ui { position: fixed; inset: 0; z-index: 6; pointer-events: none; }   /* the 3D stall's momo button, above the glass */
-.contours { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; color: var(--ink); transition: opacity .6s var(--out), visibility 0s; }
-html.past-hero :is(.contours, .scrim) { opacity: 0; visibility: hidden; transition: opacity .6s var(--out), visibility 0s .6s; }
-.contours path { fill: none; stroke: var(--contour); stroke-width: 1.1; vector-effect: non-scaling-stroke; }
-.contours text { fill: var(--muted); fill-opacity: .8; font: 500 10px var(--mono); letter-spacing: .08em; }
+html.past-hero .scrim { opacity: 0; visibility: hidden; transition: opacity .6s var(--out), visibility 0s .6s; }
 .scrim { position: fixed; inset: 0; z-index: 3; pointer-events: none; transition: opacity .6s var(--out), visibility 0s;
   /* just a short, neutral veil behind the text column; a soft halo on the text itself (below) carries the rest of the legibility */
   background: linear-gradient(90deg, color-mix(in srgb, var(--bg) 58%, transparent) 0%, color-mix(in srgb, var(--bg) 34%, transparent) 26%, transparent 46%); }

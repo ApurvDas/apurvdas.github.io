@@ -11,22 +11,22 @@ export function createScene({ canvas, stallBtn, onStall }) {
   let reduce = false, frozen = false, dirty = true, mode = 'hero', moonOK = true;
   // loop state: render while anything moves; ~1 s after the last change only slow ambient things (flags, steam, kids) keep
   // going, and only if they are on screen; otherwise the loop stops until something pokes it.
-  // Everything is paced at a steady 60 fps: every frame on a 60 Hz screen, every other frame or so on 120/144 Hz ones.
+  // Paced at a steady 60 fps: every frame on a 60 Hz screen, every other frame or so on 120/144 Hz ones.
   const FRAME = 1000 / 60;
   let raf = 0, last = 0, lastAct = 0, nextDraw = 0, settled = false, ready = false, clock = 0, distS = 68;
 
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
-  /* Quality tiers. Slow frames first switch expensive features off (tier steps down), and only when none are left drop the resolution (q).
-     high: shadows, grass, snowfall, more clouds, denser terrain. mid: outlines, medium clouds. low: today's cost plus toon shading, painted colours, a few clouds. */
-  const TIERS = ['low', 'mid', 'high'], tierQS = new URLSearchParams(location.search).get('tier');   // ?tier=low|mid|high pins one: no auto-detect, no step-down (testing)
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: true, powerPreference: 'high-performance' });
+  /* Quality tiers, decided ONCE at start-up by probe() while the canvas is still transparent, and never toggled while the user watches.
+     high: soft shadows (static map), grass, snowfall, more clouds, denser terrain. mid: outlines, medium clouds. low: toon shading, painted colours, a few clouds.
+     One render pixel ratio R per visit too (MSAA is off; a canvas rendered above the CSS size and downscaled by the browser is the anti-aliasing). */
+    const TIERS = ['low', 'mid', 'high'], tierQS = new URLSearchParams(location.search).get('tier');   // ?tier=low|mid|high pins one: no auto-detect, no step-down (testing)
   const gpuName = (() => { try { const gl = renderer.getContext(), e = gl.getExtension('WEBGL_debug_renderer_info'); return String(gl.getParameter(e ? e.UNMASKED_RENDERER_WEBGL : gl.RENDERER)); } catch { return ''; } })();
   const weakGPU = /swiftshader|llvmpipe|softpipe|basic render|(?<!U)HD Graphics (?:[2-5][0-9]{2,3})(?![0-9])/i.test(gpuName) || !renderer.capabilities.isWebGL2 || renderer.capabilities.maxTextureSize < 8192;
   let tier = TIERS.includes(tierQS) ? tierQS : weakGPU ? 'low' : (innerWidth < 700 || matchMedia('(pointer: coarse)').matches) ? 'mid' : 'high';
   const pinned = TIERS.includes(tierQS), startTier = tier, atLeast = t => TIERS.indexOf(tier) >= TIERS.indexOf(t);
-  // adaptive render scale: drop the internal resolution while frames run under 60
-  let q = 1, ft = FRAME, prevDraw = 0, pace = FRAME, chained = false, grace = 60, slow = 0;   // pace: 60 fps, or 30 on GPUs that can't hold 60 even at the lowest scale; grace: frames ignored after start / a tier step (shader compiles)
-  let scale = 1;   // the scale actually rendered: q while moving, full resolution once the view rests
-  const Q_MIN = .7;
+  // after the probe the only thing that can still change is ONE resolution drop (x0.8) if frames stay slow; no tier toggles, no pace changes
+  let ft = FRAME, prevDraw = 0, chained = false, slow = 0, shrunk = false, probing = true, tShow = 0, R = 1;   // R: the render pixel ratio of this visit
+  const PR_CAP = { high: 2, mid: 1.5, low: 1.25 }, qsNum = k => parseFloat(new URLSearchParams(location.search).get(k));   // ?pr= forces R (testing)
   renderer.setClearColor(0x000000, 0);
   renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.NoToneMapping;   // flat painted colours: no tone curve
   // toon ramp: shadow / three lit bands with soft edges (a 64-texel ramp read with linear filtering, so the band edges don't alias)
@@ -37,9 +37,10 @@ export function createScene({ canvas, stallBtn, onStall }) {
   };
   const grad = ramp([[.55, .02, .1], [.23, .3, .4], [.13, .55, .65], [.09, .78, .88]]);
   const gradT = ramp([[.42, .0, .12], [.2, .46, .52], [.2, .58, .64], [.18, .70, .76]]);   // near terrain: the bands fall where its slopes actually sit (N.L ~ .4-.8), so they read as painted contours
+  const gradM = ramp([[.35, -.5, .25], [.65, .05, .95]]);   // back ranges: a long smooth ramp, so the ridges read as painted, not faceted
   const toon = o => new THREE.MeshToonMaterial({ gradientMap: grad, ...o });
   const scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(0xe8eef4, 45, 260);
+  scene.fog = new THREE.Fog(0xc4d4f2, 45, 260);
   const camera = new THREE.PerspectiveCamera(36, 1, 1, 700);
   const hemi = new THREE.HemisphereLight(0xffffff, 0xaebccb, 2.3);
   const dir = new THREE.DirectionalLight(0xffffff, 1);
@@ -58,7 +59,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
   const PYL = [-48, -24, 0, 52, 78, 108];
   const LK = { x: MX - 9, z: 12, rx: 12, rz: 7.5 };  // Tsomgo Lake, beside the mid station
   const ridge = u => 1 - Math.abs(Math.sin(u));
-  const SNOW = new THREE.Color('#f4f7fc'), ROCK_LO = new THREE.Color('#867f88'), ROCK_HI = new THREE.Color('#b3b0ba'), rk = new THREE.Color();
+  const SNOW = new THREE.Color('#f4f7fc'), SNOW_T = new THREE.Color('#dde8fb'), SNOW_SH = new THREE.Color('#8ea6dc'), ROCK_LO = new THREE.Color('#76809e'), ROCK_HI = new THREE.Color('#a9b5d3'), rk = new THREE.Color();   // terrain snow is cool (the warm key light turns a white albedo into sand)
   const tintMats = []; let lakeMat = null;
 
   /* painted terrain: colour by altitude (Gangtok green -> meadow gold -> brown -> grey rock -> snow), patchy via smooth noise, smooth normals */
@@ -71,16 +72,17 @@ export function createScene({ canvas, stallBtn, onStall }) {
   const MEAD_A = new THREE.Color('#7fae5a'), MEAD_B = new THREE.Color('#a8c66c'), MEAD_D = new THREE.Color('#5f9150'), DRY = new THREE.Color('#bcb274'), BROWN = new THREE.Color('#8c7656');
   const alt = (x, y, z) => y + (fbm(x * .045, z * .06) - .5) * 15;   // the altitude the colours see: world height with a patchy wobble
   const greenAt = (x, z) => 1 - sm(-2, 7, alt(x, nearH(x, z), z));
-  const HAZE = new THREE.Color('#c3d0ec'), PX0 = -71, PX1 = -47, PZ0 = -3, PZ1 = 10;
+  const HAZE = new THREE.Color('#a9c0f0'), PX0 = -66, PX1 = -52, PZ0 = -1, PZ1 = 8;
   // leftover snow where the kids play: an irregular patch (negative = outside), drawn as a crisp-edged decal below
-  const patchField = (x, z) => 1 - Math.hypot((x + 59) / 7.6, (z - 3.6) / 3.8) + (fbm(x * .33 + 11, z * .5) - .5) * .45;
+  const patchField = (x, z) => 1 - Math.hypot((x + 59) / 6, (z - 3.6) / 3) + (fbm(x * .33 + 11, z * .5) - .5) * .4;
   const cc = new THREE.Color(), WARM = new THREE.Color('#e6d27c'), COOL = new THREE.Color('#4a7f8c');
+  let lastSnow = 0;
   function paint(c, x, y, z, ny) {
     const a = alt(x, y, z), n1 = fbm(x * .11 + 3, z * .13);
     c.copy(MEAD_A).lerp(MEAD_B, sm(.3, .75, n1)).lerp(MEAD_D, sm(.55, .92, 1 - ny) * .8);
     c.lerp(DRY, sm(-1, 9, a) * .6).lerp(BROWN, sm(6, 17, a) * (.55 + .4 * (1 - ny)));
     c.lerp(rk.copy(ROCK_LO).lerp(ROCK_HI, clamp(y / 80, 0, 1)), Math.max(sm(14, 30, a) * .85, sm(.82, .6, ny) * sm(0, 12, a)));
-    c.lerp(SNOW, sm(0, 1, (a - 22) / 12 + (ny - .62) * 1.3));
+    lastSnow = sm(0, 1, (a - 13) / 11 + (ny - .62) * 1.3); c.lerp(SNOW_T, lastSnow);
     return c;
   }
   function terrain({ x0, x1, z0, z1, nx, nz, h, seed, jit = .3, hz = 0, near }) {
@@ -101,12 +103,12 @@ export function createScene({ canvas, stallBtn, onStall }) {
     for (let v = 0; v < P.length / 3; v++) {
       const x = P[v * 3], y = P[v * 3 + 1], z = P[v * 3 + 2];
       paint(cc, x, y, z, n.getY(v));
-      if (near) { const nl = (n.getX(v) * -.70 + n.getY(v) * .54 + n.getZ(v) * .49); cc.lerp(WARM, sm(.45, .95, nl) * .2).lerp(COOL, sm(.3, -.2, nl) * .26); }   // painted shade shift: warmer toward the light, cooler away
+      if (near) { const nl = (n.getX(v) * -.70 + n.getY(v) * .54 + n.getZ(v) * .49), sn = lastSnow; cc.lerp(WARM, sm(.45, .95, nl) * .2 * (1 - sn)).lerp(COOL, sm(.3, -.2, nl) * .26 * (1 - sn)).lerp(SNOW_SH, sm(.35, -.1, nl) * .55 * sn); }   // painted shade shift: warmer toward the light, cooler away; snow shades blue, never warm
       cc.lerp(HAZE, hz);   // atmospheric perspective: every range further back is lighter and bluer
       col.set([cc.r, cc.g, cc.b], v * 3);
     }
     g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-    const m = toon({ vertexColors: true, ...(near && { gradientMap: gradT }) });
+    const m = toon({ vertexColors: true, gradientMap: near ? gradT : gradM });
     tintMats.push(m); const mesh = new THREE.Mesh(g, m); mesh.receiveShadow = !!near; return mesh;   // only the near layer takes shadows
   }
   const range = (seed, k, base, A, z0, z1) => (x, z) => {
@@ -125,9 +127,9 @@ export function createScene({ canvas, stallBtn, onStall }) {
   // ponytail: terrain density is fixed at the start tier (rebuilding on a step-down would cost a hitch); only high gets the finer grid
   const dens = tier === 'high' ? 1.4 : 1;
   scene.add(
-    terrain({ x0: -300, x1: 330, z0: -160, z1: -110, nx: 110 * dens | 0, nz: 6, h: range(1.3, .75, 18, 64, -160, -110), seed: 11, hz: .6 }),
-    terrain({ x0: -280, x1: 310, z0: -102, z1: -62, nx: 104 * dens | 0, nz: 6, h: range(4.1, .8, 12, 54, -102, -62), seed: 22, hz: .42 }),
-    terrain({ x0: -250, x1: 290, z0: -58, z1: -26, nx: 96 * dens | 0, nz: 6, h: range(7.7, .85, 6, 44, -58, -26), seed: 33, hz: .22 }),
+    terrain({ x0: -300, x1: 330, z0: -160, z1: -110, nx: 260, nz: 14, jit: .08, h: range(1.3, .75, 18, 64, -160, -110), seed: 11, hz: .72 }),
+    terrain({ x0: -280, x1: 310, z0: -102, z1: -62, nx: 250, nz: 14, jit: .08, h: range(4.1, .8, 12, 54, -102, -62), seed: 22, hz: .55 }),
+    terrain({ x0: -250, x1: 290, z0: -58, z1: -26, nx: 230, nz: 14, jit: .08, h: range(7.7, .85, 6, 44, -58, -26), seed: 33, hz: .34 }),
     terrain({ x0: -170, x1: 260, z0: -24, z1: 40, nx: 190 * dens | 0, nz: 22 * dens | 0, h: nearH, seed: 44, jit: .25, near: true })
   );
   { // the kids' snow patch: a thin mesh draped on the meadow, textured from patchField with a crisp irregular edge and a few cool/warm tone patches
@@ -135,9 +137,9 @@ export function createScene({ canvas, stallBtn, onStall }) {
     for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
       const x = PX0 + (i + .5) / W * (PX1 - PX0), z = PZ0 + (j + .5) / H * (PZ1 - PZ0), f = patchField(x, z), o = (j * W + i) * 4;
       if (f < 0) continue;   // outside the patch: leave transparent (and skip the tone noise)
-      const t = fbm(x * .9 + 5, z * 1.3), e = f < .035 ? 1 : 0;   // a thin darker rim reads as the melting edge
-      const a = sm(0, .02, f), cool = sm(.35, .7, t) * .55 + e * .35;
-      im.data[o] = 247 - 40 * cool; im.data[o + 1] = 248 - 26 * cool; im.data[o + 2] = 252 - 10 * cool; im.data[o + 3] = 255 * a;
+      const t = fbm(x * .9 + 5, z * 1.3), e = f < .06 ? 1 : 0;   // a thin darker rim reads as the melting edge
+      const a = sm(0, .1, f), cool = sm(.3, .7, t) * .6 + e * .3;
+      im.data[o] = 226 - 42 * cool; im.data[o + 1] = 236 - 32 * cool; im.data[o + 2] = 249 - 16 * cool; im.data[o + 3] = 238 * a;   // a soft cool white, not the brightest thing on the meadow
     }
     g.putImageData(im, 0, 0);
     const tx = new THREE.CanvasTexture(c); tx.colorSpace = THREE.SRGBColorSpace; tx.anisotropy = 4;
@@ -145,7 +147,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
     for (let i = 0; i < pp.count; i++) { const x = pp.getX(i) + cx, z = pp.getZ(i) + cz; pp.setXYZ(i, x, nearH(x, z) + .07, z); }
     pg.computeVertexNormals();
     const m = toon({ map: tx, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
-    m.userData.dim = .62; tintMats.push(m);   // at night it would glow next to the dark meadow, so it is dimmed
+    m.userData.night = new THREE.Color('#353c4c'); tintMats.push(m);   // at night: a dark muted blue-grey (white x the night tint would be a purple puddle)
     const patch = new THREE.Mesh(pg, m); patch.receiveShadow = true; scene.add(patch);
   }
   { // Tsomgo Lake: one flat disc
@@ -433,10 +435,10 @@ export function createScene({ canvas, stallBtn, onStall }) {
     cones.forEach(hullOf); hullOf(bp);
 
     // high tier: swaying grass tufts + tiny flowers on the base meadow (wind in the vertex shader)
-    const blade = [], bc = [], W = .09, H = .85;
-    for (let k = 0; k < 3; k++) {
-      const a = k * Math.PI / 3, ca = Math.cos(a), sa = Math.sin(a);
-      [[-W, 0, 0], [W, 0, 0], [(k - 1) * .06, H * (.8 + k * .1), 0]].forEach(([x, y, z], v) => { blade.push(x * ca - z * sa, y, x * sa + z * ca); const t = v === 2 ? 1 : 0; bc.push(.5 + .75 * t, .62 + .62 * t, .42 + .2 * t); });
+    const blade = [], bc = [], W = .12;
+    for (let k = 0; k < 6; k++) {   // one clump = six short soft blades leaning out around a centre
+      const a = k * 1.047 + (k % 2) * .4, ca = Math.cos(a), sa = Math.sin(a), H = .4 + (k % 3) * .12, lean = .14 + (k % 2) * .08, r0 = .06 + (k % 3) * .04;
+      [[-W, 0, r0], [W, 0, r0], [0, H, r0 + lean]].forEach(([w, y, r], v) => { blade.push(r * ca - w * sa, y, r * sa + w * ca); const t = v === 2 ? 1 : 0; bc.push(.74 + .24 * t, .86 + .18 * t, .66 + .12 * t); });   // tips only a little lighter than the meadow
     }
     const gg = new THREE.BufferGeometry(); gg.setAttribute('position', new THREE.Float32BufferAttribute(blade, 3)); gg.setAttribute('color', new THREE.Float32BufferAttribute(bc, 3)); gg.computeVertexNormals();
     const gm = toon({ vertexColors: true, side: THREE.DoubleSide }); tintMats.push(gm);
@@ -446,13 +448,13 @@ export function createScene({ canvas, stallBtn, onStall }) {
         '#include <begin_vertex>\n float sw = sin(uT * 1.8 + instanceMatrix[3].x * .45 + instanceMatrix[3].z * .3 + position.y * 2.5) + .5 * sin(uT * 3.1 + instanceMatrix[3].x * .9);\n transformed.x += sw * .09 * position.y; transformed.z += sw * .04 * position.y;');
     };
     const spotsG = [], flw = [];
-    for (let i = 0; spotsG.length < 1800 && i < 12000; i++) {
+    for (let i = 0; spotsG.length < 520 && i < 12000; i++) {
       const x = GRASS_X0 + rnd() * (GRASS_X1 - GRASS_X0), z = -3 + rnd() * 24;
       if (clear(x, z) || patchField(x, z) > -.2 || greenAt(x, z) < .55 || Math.abs(z + 2) < 1.6 && Math.abs(x - BX) < 10) continue;
-      spotsG.push([x, nearH(x, z) - .05, z, .7 + rnd() * .7]);
+      spotsG.push([x, nearH(x, z) - .05, z, .9 + rnd() * .7]);
     }
     const gi = new THREE.InstancedMesh(gg, gm, spotsG.length); gi.frustumCulled = true;
-    spotsG.forEach(([x, y, z, k], i) => { d.position.set(x, y, z); d.scale.setScalar(k); d.rotation.y = rnd() * 6.28; d.updateMatrix(); gi.setMatrixAt(i, d.matrix); gi.setColorAt(i, c.copy(MEAD_A).lerp(MEAD_B, rnd() * .6).lerp(MEAD_D, rnd() * .5)); if (i % 6 === 0) flw.push([x + (rnd() - .5) * .3, y + .3 * k, z + (rnd() - .5) * .3, i % 12 === 0]); });
+    spotsG.forEach(([x, y, z, k], i) => { d.position.set(x, y, z); d.scale.setScalar(k); d.rotation.y = rnd() * 6.28; d.updateMatrix(); gi.setMatrixAt(i, d.matrix); gi.setColorAt(i, c.copy(MEAD_A).lerp(MEAD_B, rnd() * .6).lerp(MEAD_D, rnd() * .5)); if (i % 5 === 0) flw.push([x + (rnd() - .5) * .3, y + .3 * k, z + (rnd() - .5) * .3, i % 12 === 0]); });
     const fm = toon(), fi = new THREE.InstancedMesh(new THREE.SphereGeometry(.11, 6, 5), fm, flw.length); tintMats.push(fm);
     flw.forEach(([x, y, z, yel], i) => { d.position.set(x, y, z); d.scale.setScalar(1); d.rotation.y = 0; d.updateMatrix(); fi.setMatrixAt(i, d.matrix); fi.setColorAt(i, c.set(yel ? '#f4cf4a' : '#fffaf0')); });
     scene.add(gi, fi); highOnly.push(gi, fi);
@@ -531,7 +533,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
   const mBody = toon({ color: '#2f4a6b' }), mCRoof = toon({ color: '#c3ccd8' }), mCDark = toon({ color: '#2a3340' });
   const pivot = new THREE.Group(), swing = new THREE.Group(); pivot.add(swing); scene.add(pivot);
   const cbox = (w, h, d, m, y, x = 0) => {
-    const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, 0); o.castShadow = true; swing.add(o);
+    const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, 0); swing.add(o);
     if (Math.min(w, h, d) > .2) { const l = new THREE.Mesh(new THREE.BoxGeometry(w + .12, h + .12, d + .12), mLine); l.position.copy(o.position); swing.add(l); outlines.push(l); }
     return o;
   };
@@ -626,20 +628,18 @@ export function createScene({ canvas, stallBtn, onStall }) {
       const m = new THREE.Mesh(new THREE.PlaneGeometry(w, w / 2), new THREE.MeshBasicMaterial({ map: cloudTex[i % 3], transparent: true, depthWrite: false, fog: false }));
       const sc = .85 + rnd() * .3, d = 68 + Math.abs(z), half = .325 * d, ch = w / 4 * sc, off = d * .1 - 6.8;   // the camera looks slightly down, so the view's centre line is `off` below the group at this depth
       const ys = half * .1 + rnd() * Math.max(0, half * .74 - ch - half * .1);     // on-screen height: the whole cloud stays inside the sky band, clear of the top bar
-      m.position.z = z; const o = { m, x0: (rnd() * 2 - 1) * CLOUD_W, y: ys - off + 5, v: (.5 + rnd() * .5) * (3 - l) * .45, l }; m.scale.setScalar(sc);
+      m.position.z = z; const o = { m, x0: (rnd() * 2 - 1) * CLOUD_W, y: ys - off + 5, l }; m.scale.setScalar(sc);
       m.userData.o = o; grp.add(m); out.push(o);
     }
     scene.add(grp); return { grp, out };
   })();
-  function updateClouds(t) {   // drift: driven by the loop's own clock, so clouds only move while something else keeps the loop running
-    clouds.out.forEach(o => { o.m.position.x = ((o.x0 + t * o.v + CLOUD_W) % (2 * CLOUD_W) + 2 * CLOUD_W) % (2 * CLOUD_W) - CLOUD_W; o.m.position.y = o.y; });
-  }
-  updateClouds(0);
+  // clouds do not drift on their own: a drift would only run while something else keeps the loop alive (they would stop and start), and a catch-up after idle would jump
+  clouds.out.forEach(o => { o.m.position.x = o.x0; o.m.position.y = o.y; });
 
   /* ---------- theme (cross-faded) ---------- */
   const C = o => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, typeof v === 'string' ? new THREE.Color(v) : v]));
   const TH = {
-    light: C({ skyTop: '#79aee6', skyMid: '#b8d3ee', skyBot: '#fbe1c8', fog: '#e2e1ea', cloud: '#ffffff', cloudO: .97, tint: '#ffffff', wood: '#ffffff', hemiSky: '#d9e5f6', hemiGnd: '#9aaed6', hemiI: 1.95, dirC: '#ffe2b8', dirI: 2.1, win: '#e6eef6', glow: 0, warm: 0, stars: 0, moon: 0, dx: -55, dy: 42, dz: 38 }),
+    light: C({ skyTop: '#79aee6', skyMid: '#b8d3ee', skyBot: '#fbe1c8', fog: '#bccef0', cloud: '#ffffff', cloudO: .97, tint: '#ffffff', wood: '#ffffff', hemiSky: '#d9e5f6', hemiGnd: '#9aaed6', hemiI: 1.95, dirC: '#ffe2b8', dirI: 2.1, win: '#e6eef6', glow: 0, warm: 0, stars: 0, moon: 0, dx: -55, dy: 42, dz: 38 }),
     dark: C({ skyTop: '#050a1a', skyMid: '#0c1631', skyBot: '#1c2c58', fog: '#162243', cloud: '#6d82bc', cloudO: .7, tint: '#6c80b8', wood: '#9aa3c0', hemiSky: '#4b61a0', hemiGnd: '#0b1226', hemiI: 1.15, dirC: '#a9c0ff', dirI: 1.7, win: '#ffc77a', glow: 55, warm: 60, stars: 1, moon: 1, dx: 50, dy: 60, dz: 30 }),
   };
   const colorKeys = ['skyTop', 'skyMid', 'skyBot', 'fog', 'cloud', 'tint', 'wood', 'hemiSky', 'hemiGnd', 'dirC', 'win'], numKeys = ['cloudO', 'hemiI', 'dirI', 'glow', 'warm', 'stars', 'moon', 'dx', 'dy', 'dz'];
@@ -651,7 +651,7 @@ export function createScene({ canvas, stallBtn, onStall }) {
     root.style.setProperty('--sky-top', '#' + cur.skyTop.getHexString()); root.style.setProperty('--sky-mid', '#' + cur.skyMid.getHexString()); root.style.setProperty('--sky-bot', '#' + cur.skyBot.getHexString());
     clouds.out.forEach(o => { o.m.material.color.copy(cur.cloud); o.m.material.opacity = n.cloudO * [1, .88, .76][o.l]; });
     scene.fog.color.copy(cur.fog);
-    tintMats.forEach(m => { m.color.copy(cur.tint); if (m.userData.base) m.color.multiply(m.userData.base); if (m.userData.dim) m.color.multiplyScalar(1 - m.userData.dim * k); });
+    tintMats.forEach(m => { m.color.copy(cur.tint); if (m.userData.base) m.color.multiply(m.userData.base); if (m.userData.dim) m.color.multiplyScalar(1 - m.userData.dim * k); if (m.userData.night) m.color.set(0xffffff).lerp(m.userData.night, k); });
     mWood.color.copy(cur.wood); mDark.color.copy(cur.wood).multiply(new THREE.Color('#5a3e2a')); mRoof.color.copy(cur.wood).multiply(new THREE.Color('#8c4b3b')); mBamboo.color.copy(cur.wood).multiply(new THREE.Color('#c9a45c'));
     hemi.color.copy(cur.hemiSky); hemi.groundColor.copy(cur.hemiGnd); hemi.intensity = n.hemiI;
     dir.color.copy(cur.dirC); dir.intensity = n.dirI; dir.position.set(n.dx, n.dy, n.dz).normalize().multiplyScalar(130).add(dir.target.position); shDirty = true;
@@ -668,17 +668,9 @@ export function createScene({ canvas, stallBtn, onStall }) {
 
   /* ---------- layout ---------- */
   const Lo = { dist: 68, sx: 0, up: 0, mdx: 0, mdy: 0, w: 1, h: 1 };
-  const qsNum = k => parseFloat(new URLSearchParams(location.search).get(k)), SS = qsNum('pr') || 1.25, LOW_CAP = qsNum('lc') || 1.5;   // ?pr= ?lc= are test overrides
-  // per tier: high supersamples a low-DPR screen (SS x) while the view rests (moving frames stay native: 1.25x while moving was too dear for the iGPU test box) and caps at 2;
-  // mid caps at 1.5 (an iGPU at DPR 2 can stay on mid); low keeps the cheap cap
-  let resting = false;
-  const ratio = () => { const d = devicePixelRatio || 1; return tier === 'low' ? Math.min(d, Lo.w < 700 ? 1 : LOW_CAP) : tier === 'mid' ? Math.min(d, 1.5) : Math.min(2, resting ? Math.max(d, SS) : d); };
-  function setRes() {   // drawing-buffer size only. mid/high render up to 2x (sharp on 1.5-2x laptops and phones); low keeps the old, cheap 1.25x / 1x cap
-    renderer.setPixelRatio(ratio() * scale);
-    renderer.setSize(Lo.w, Lo.h, false);
-  }
+  function setRes() { renderer.setPixelRatio(R); renderer.setSize(Lo.w, Lo.h, false); }   // drawing-buffer size only
   function applyTier() { setRes(); snowfall.material.size = 3.6 * renderer.getPixelRatio(); snowfall.visible = tier === 'high' && !reduce; outlines.forEach(o => { o.visible = atLeast('mid'); }); shDirty = true; counted.forEach(({ im, n, per }) => { im.count = Math.min(n[tier], im.userData.max ?? 1e9) * per; }); highOnly.forEach(m => { m.visible = tier === 'high'; }); clouds.out.forEach((o, i) => { o.m.visible = i < CLOUD_N[tier]; }); dirty = true; }
-  function tierDown() { tier = TIERS[TIERS.indexOf(tier) - 1]; if (tier !== 'high') dir.castShadow = false; applyTier(); }   // dropping the shadow caster recompiles the lit shaders once
+  function setTier(t) { tier = t; dir.castShadow = tier === 'high'; applyTier(); }   // dropping the shadow caster recompiles the lit shaders once (only ever during the probe)
   function layout() {
     const w = Math.max(1, canvas.clientWidth), h = Math.max(1, canvas.clientHeight), a = w / h;
     Lo.w = w; Lo.h = h;
@@ -703,75 +695,74 @@ export function createScene({ canvas, stallBtn, onStall }) {
   const UP = [uAtX(park.base.x), uAtX(park.mid.x), uAtX(park.top.x)];
   const uOfStage = s => s <= 1 ? UP[0] + (UP[1] - UP[0]) * clamp(s, 0, 1) : UP[1] + (UP[2] - UP[1]) * clamp(s - 1, 0, 1);
   let stage = 0;
-  const S = { u: UP[0], uv: 0, th: 0, thv: 0, vw: 0, cx: 0, cy: 0, init: false, dip: 0 };
+  const S = { u: UP[0], uv: 0, th: 0, thv: 0, vw: 0, aw: 0, ox: 0, oy: 0, cx: 0, cy: 0, init: false, dip: 0 };
   let lastCabinX = 0;
   const proj = new THREE.Vector3();
 
   function poke() { dirty = true; lastAct = performance.now(); wake(); }
-  function wake() { if (ready && !raf && !document.hidden) { last = performance.now(); chained = false; raf = requestAnimationFrame(frame); } }
+  function wake() { if (ready && !raf && !probing && !document.hidden) { last = performance.now(); chained = false; raf = requestAnimationFrame(frame); } }
   // flags/steam live near the top station, the kids at the base: is any of that in the frame?
   const ambientInView = () => { const hw = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * distS * camera.aspect + 8; return (S.cx + hw > -68 && S.cx - hw < -46) || (S.cx + hw > 94 && S.cx - hw < 166); };
 
-  function frame(now) {
-    raf = 0;
-    const calm = settled && !dirty && mix === mixTarget && now - lastAct > 1000;
-    if (calm && (reduce || !ambientInView()) && scale === 1 && resting) return;             // nothing moves: stop until poke() (after one sharp frame)
-    const want = calm ? 1 : q;                                                 // at rest the view is what people look at: always full resolution
-    if (want !== scale || calm !== resting) { scale = want; resting = calm; setRes(); }
-    const step = calm && q < 1 ? 1000 / 30 : pace;                             // a weak GPU idles the ambient motion at 30 fps to afford it
-    if (now < nextDraw - 1) { raf = requestAnimationFrame(frame); return; }      // 60 fps pacing on faster screens
-    nextDraw = Math.max(nextDraw, now - step / 2) + step;                      // stay on the grid; after a pause, resync
-    const dt = Math.min(.05, Math.max(.001, (now - last) / 1000)); last = now;
-    if (mix !== mixTarget) { mix = mix < mixTarget ? Math.min(mixTarget, mix + dt / .4) : Math.max(mixTarget, mix - dt / .4); applyTheme(); }
+  /* One lag only: the cabin follows the scroll through a stiff critically damped spring (closed form, exact for any dt), and the camera is locked
+     to the cabin (only the framing offset eases, on a mode change or resize). The pendulum sway and the dip hang off the cabin's velocity / acceleration. */
+  const W_TRAVEL = 26, SW_V = .0007, SW_A = .0003, SW_MAX = .07, DIP_K = .0006;   // travel stiffness (1/s): ~0.3 s to settle; sway gains, max tilt (rad); dip gain
+  function advance(dt, now) {   // everything that moves, then the camera. Returns the cabin's point on the cable
     const target = uOfStage(reduce ? Math.round(stage) : stage);
+    if (!S.init) S.u = target;   // first frame: start where the page is, no ride-in
     if (reduce) {
       S.u = target;   // reduced motion: no travel, the cabin rests at the nearest station
-      S.uv = S.th = S.thv = S.vw = 0; S.dip = 0;
+      S.uv = S.th = S.thv = S.vw = S.aw = 0; S.dip = 0;
       updateFlags(0, true); updateKids(0, 1e3, true); steamAt(0, true);
     } else {
       clock += dt;
-      const k = 11, a = (target - S.u) * k - S.uv * 2 * Math.sqrt(k);
-      S.uv += a * dt; S.u += S.uv * dt;
-      const vw = S.uv * CL, aw = (vw - S.vw) / dt; S.vw = vw;
-      const thT = clamp(-(vw * .004 + aw * .0012), -.25, .25), w0 = 2.4, z = .18;
-      S.thv += (-w0 * w0 * (S.th - thT) - 2 * z * w0 * S.thv) * dt; S.th += S.thv * dt;
+      const e = S.u - target, ex = Math.exp(-W_TRAVEL * dt), c = S.uv + W_TRAVEL * e;
+      S.u = target + (e + c * dt) * ex; S.uv = (S.uv - W_TRAVEL * c * dt) * ex;
+      const vw = S.uv * CL, aw = (vw - S.vw) / dt; S.vw = vw; S.aw += (aw - S.aw) * Math.min(1, dt / .05);
+      const thT = clamp(-(vw * SW_V + S.aw * SW_A), -SW_MAX, SW_MAX), w0 = 6, z = .7;
+      for (let n = Math.ceil(dt / .008), h = dt / n, i = 0; i < n; i++) { S.thv += (-w0 * w0 * (S.th - thT) - 2 * z * w0 * S.thv) * h; S.th += S.thv * h; }
       if (now - lastAct > 1000) { const d = Math.exp(-dt * 3); S.th *= d; S.thv *= d; }   // let the sway die so the loop can rest
-      S.dip += (clamp(Math.abs(aw) * .012, 0, .22) - S.dip) * Math.min(1, dt * 6);
+      S.dip += (clamp(Math.abs(S.aw) * DIP_K, 0, .2) - S.dip) * Math.min(1, dt * 10);
       wheels.forEach(w => { w.g.rotation.z -= vw / w.R * dt; });
       updateFlags(clock, false); updateKids(clock, lastCabinX, false); steamAt(clock, false);
     }
     const p = cableAt(S.u); lastCabinX = p.x;
-    if (!reduce) { updateClouds(clock); grassT.value = snowT.value = clock; }
+    if (!reduce) grassT.value = snowT.value = clock;
     pivot.position.copy(p); pivot.position.y -= S.dip;
     swing.rotation.z = reduce ? 0 : S.th + Math.sin(clock * .8) * .012;
-    const tx = p.x - Lo.sx, ty = p.y + Lo.up;
-    if (!S.init || reduce) { S.cx = tx; S.cy = ty; distS = Lo.dist; S.init = true; }
-    else { const f = 1 - Math.exp(-dt * 5); S.cx += (tx - S.cx) * f; S.cy += (ty - S.cy) * f; distS += (Lo.dist - distS) * f; }
+    if (!S.init || reduce) { S.ox = Lo.sx; S.oy = Lo.up; distS = Lo.dist; S.init = true; }
+    else { const f = 1 - Math.exp(-dt * 5); S.ox += (Lo.sx - S.ox) * f; S.oy += (Lo.up - S.oy) * f; distS += (Lo.dist - distS) * f; }
+    S.cx = p.x - S.ox; S.cy = p.y + S.oy;   // locked to the cabin
     camera.position.set(S.cx, S.cy + distS * .1, distS); camera.lookAt(S.cx, S.cy, 0);
     clouds.grp.position.set(S.cx * .82, S.cy * .9, 0);
     stars.position.set(S.cx, S.cy, 0); moon.position.set(S.cx + Lo.mdx, S.cy + Lo.mdy, -250); halo.position.copy(moon.position);
     settled = reduce || (Math.abs(target - S.u) < 2e-5 && Math.abs(S.uv) < 2e-4 && Math.abs(S.th) < .003 && Math.abs(S.thv) < .004 &&
-      Math.abs(tx - S.cx) < .02 && Math.abs(ty - S.cy) < .02 && Math.abs(Lo.dist - distS) < .03);
-
+      Math.abs(Lo.sx - S.ox) < .02 && Math.abs(Lo.up - S.oy) < .02 && Math.abs(Lo.dist - distS) < .03);
     // warm light follows the nearest lodge / the stall
     const wx = p.x > (MX + TX) / 2 ? (p.x > TX - 14 ? SX : TX) : (p.x > (BX + MX) / 2 ? MX : BX);
     const wp = wx === SX ? stallPos : new THREE.Vector3(wx, park[wx === BX ? 'base' : wx === MX ? 'mid' : 'top'].y0 + 3, 2.5);
     warm.position.lerp(wp, reduce ? 1 : Math.min(1, dt * 3)); warm.intensity = warmI;
-
-    renderer.shadowMap.needsUpdate = dir.castShadow && (!settled || shDirty); shDirty = false;   // redraw the shadow map only when the cabin moved or the light / tier changed
+    return p;
+  }
+  function draw() {   // the shadow map is static (the cabin casts none): redrawn only when the light / theme / tier changed
+    renderer.shadowMap.needsUpdate = dir.castShadow && shDirty; shDirty = false;
     renderer.render(scene, camera); dirty = false;
+  }
+
+  function frame(now) {
+    raf = 0;
+    const calm = settled && !dirty && mix === mixTarget && now - lastAct > 1000;
+    if (calm && (reduce || !ambientInView())) return;             // nothing moves: stop until poke()
+    if (now < nextDraw - 1) { raf = requestAnimationFrame(frame); return; }      // 60 fps pacing on faster screens
+    nextDraw = Math.max(nextDraw, now - FRAME / 2) + FRAME;                    // stay on the grid; after a pause, resync
+    const dt = Math.min(.05, Math.max(.001, (now - last) / 1000)); last = now;
+    if (mix !== mixTarget) { mix = mix < mixTarget ? Math.min(mixTarget, mix + dt / .4) : Math.max(mixTarget, mix - dt / .4); applyTheme(); }
+    advance(dt, now);
+    draw();
     const gap = now - prevDraw; prevDraw = now;
-    if (chained && (!calm || step === pace)) {   // frames of an unbroken run (the gap is real frame time, however slow); resting frames at a 30 fps idle are on purpose
-      if (grace > 0 || now - tReady < 4500) { grace = Math.max(0, grace - 1); ft = FRAME; slow = 0; }   // not while the page itself is still starting up (contour drawing, fonts) or right after a step
-      else {
-        ft += (Math.min(gap, 60) - ft) * .1;   // one hitch can't shove it too far
-        slow = ft > 18.5 ? slow + 1 : 0;      // a step needs ~0.4 s of sustained slowness: page-load work and one-off uploads must not cost a tier
-        if (slow > 24 && tier !== 'low' && !pinned) { tierDown(); ft = FRAME; grace = 40; slow = 0; }   // under ~54 fps: switch expensive features off first (also while resting at the base)
-        else if (calm) { /* resolution only drops while moving */ }
-        else if (slow > 24 && ft > 26 && q <= Q_MIN && pace === FRAME) { pace = 1000 / 30; ft = pace; slow = 0; }   // still under ~38 fps at the lowest scale: a steady 30 beats a stutter
-        else if (slow > 24 && q > Q_MIN && pace === FRAME) { q = Math.max(Q_MIN, q - .15); ft = FRAME; slow = 0; scale = q; resting = false; setRes(); }   // then render fewer pixels while moving
-      }
-      // ponytail: only steps down (once per visit); stepping back up made edge-of-60 GPUs flip sharp/soft every few seconds
+    if (chained && !shrunk && !pinned && !reduce && now - tShow > 3000) {   // the only thing that can still change: once, if frames stay slow, render 20% fewer pixels for the rest of the visit
+      ft += (Math.min(gap, 60) - ft) * .1; slow = ft > 25 ? slow + 1 : 0;
+      if (slow > 60 && R > 1) { shrunk = true; R = Math.max(1, R * .8); setRes(); }
     }
     if (stallBtn) {   // anchor the focusable stall label to the 3D stall
       proj.copy(stallPos).project(camera);
@@ -781,15 +772,45 @@ export function createScene({ canvas, stallBtn, onStall }) {
     chained = true;
     if (!reduce || mix !== mixTarget) raf = requestAnimationFrame(frame);
   }
+
+  /* Start-up probe: while the canvas is still transparent, time real frames (render + a 1-pixel readback, so the GPU has really finished) on a ladder of
+     (tier, pixel ratio) settings from best to cheapest and keep the first that fits the budget. After this nothing visible is ever toggled. */
+  const BUDGET = 8.5;   // ms per back-to-back frame (measured on an Intel UHD: 7.2 ms probes held 60 fps at rest and 54-60 while scrolling); the compositor and the page need the rest of the 16.7
+  const defR = t => Math.min(PR_CAP[t], Math.max(devicePixelRatio || 1, 1.5));
+  let probeLog = null;
+  function finishProbe() { probing = false; tShow = performance.now(); canvas.classList.add('on'); applyTier(); poke(); }
+  function probe() {
+    if (pinned || reduce || frozen || document.hidden || weakGPU) { R = qsNum('pr') || (weakGPU ? 1 : defR(tier)); return finishProbe(); }   // no timing possible / wanted: the start tier at its default ratio
+    const gl = renderer.getContext(), px = new Uint8Array(4), want = Math.max(devicePixelRatio || 1, 1.5), seen = new Set();
+    const rungs = [['high', want], ['high', 1.5], ['high', 1.25], ['mid', 1.5], ['mid', 1.25], ['low', 1.25], ['low', 1]]
+      .filter(([t]) => TIERS.indexOf(t) <= TIERS.indexOf(startTier)).map(([t, r]) => [t, Math.min(r, PR_CAP[t])]).filter(([t, r]) => !seen.has(t + r) && seen.add(t + r));
+    advance(1 / 60, performance.now());   // put the cabin and camera where the first real frame will have them
+    let i = 0; const trail = [];
+    const apply = () => { const [t, r] = rungs[i]; if (t !== tier) setTier(t); R = qsNum('pr') || r; setRes(); shDirty = true; };
+    const burst = () => {   // back-to-back frames in one task: the GPU is kept busy, so its clocks are up and the page's own animations add little noise
+      if (document.hidden) { R = defR(tier); return finishProbe(); }
+      const ts = [];
+      for (let k = 0; k < 11; k++) {
+        renderer.shadowMap.needsUpdate = dir.castShadow && shDirty; shDirty = false;
+        const t0 = performance.now(); renderer.render(scene, camera); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px); if (k > 2) ts.push(performance.now() - t0);   // the first frames upload textures
+      }
+      const med = ts.sort((a, b) => a - b)[ts.length >> 1], lastRung = i === rungs.length - 1;
+      trail.push(`${tier}@${R}:${med.toFixed(1)}`);
+      if (med <= BUDGET || lastRung) { probeLog = { tier, R, med: +med.toFixed(1), rungs: i + 1, trail }; return finishProbe(); }
+      i++; apply(); setTimeout(burst, 16);
+    };
+    apply(); requestAnimationFrame(() => setTimeout(burst, 0));
+  }
   document.addEventListener('visibilitychange', () => { if (document.hidden) { cancelAnimationFrame(raf); raf = 0; } else poke(); });   // nothing renders in a hidden tab
   new ResizeObserver(layout).observe(canvas);
-  applyTier(); renderer.compile(scene, camera);   // build the shaders now, so the first moving frames are not measured as slow
-  ready = true; const tReady = performance.now(); layout();
+  R = qsNum('pr') || defR(tier); applyTier(); renderer.compile(scene, camera);   // build the shaders now, so the probe's first frames are not measured as slow
+  ready = true; layout();
+  setTimeout(probe, 0);   // after the caller has said whether this visit is reduced / still
   if (/[?&]fps\b/.test(location.search)) {   // ?fps: a tiny readout of the scene's tier, frame rate and render scale, for testing on real hardware
     const hud = document.createElement('div');
     hud.style.cssText = 'position:fixed;z-index:99;left:8px;top:64px;padding:4px 8px;border-radius:6px;background:#000c;color:#9f9;font:12px/1.3 monospace;pointer-events:none';
     document.body.appendChild(hud);
-    setInterval(() => { hud.textContent = `${tier}${tier === startTier ? '' : ' (from ' + startTier + ')'} · ${Math.round(1000 / ft)} fps · moving ${Math.round(q * 100)}% · now ${Math.round(scale * 100)}% · ${canvas.width}px · ${pace === FRAME ? '60' : '30'} cap`; }, 500);
+    setInterval(() => { hud.textContent = `${tier}${tier === startTier ? '' : ' (from ' + startTier + ')'} · ${Math.round(1000 / ft)} fps · ratio ${R.toFixed(2)}${shrunk ? ' (shrunk)' : ''} · ${canvas.width}px${probeLog ? ' · probe ' + probeLog.med + ' ms/' + probeLog.rungs : ''}`; }, 500);
   }
 
   return {
