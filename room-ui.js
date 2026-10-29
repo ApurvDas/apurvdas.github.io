@@ -14,13 +14,15 @@ const SECTIONS = {
   ...Object.fromEntries(PROJECTS.map(p => [p, [NAMES[p], ['#' + p]]])),
 };
 const cvHref = r => `cv/Apurv-Das-CV-${ROLES[r].cv}.pdf`;
+const TITLES = { cv: 'Download CV', rubik: 'Rubik’s cube', mochi: 'Mochi' };
+const fmtT = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
 export async function start({ role, theme }) {
   const root = document.documentElement, panel = $('#rm-panel'), body = $('#rm-body'), title = $('#rm-title'), toast = $('#rm-toast'), bar = $('#rm-bar'), load = $('#rm-load');
-  let pending = false, room = null, cur = null, tok = 0, closeT = 0, toastT = 0, curRole = role, cvNode = null, lastPin = null;
+  let pending = false, room = null, cur = null, tok = 0, closeT = 0, toastT = 0, curRole = role, cvNode = null, cubeNode = null, mochiNode = null, lastPin = null, tickI = 0;
   const { createRoom, PANEL_KEYS } = await import('./room.js');
 
-  const say = msg => { toast.textContent = msg; toast.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => toast.classList.remove('show'), 2800); };
+  const say = (msg, quiet) => { toast.setAttribute('aria-live', quiet ? 'off' : 'polite'); toast.textContent = msg; toast.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => toast.classList.remove('show'), 2800); };
   const pinFor = k => $(`.rm-pin[data-key="${k}"]`);
   const setInert = on => [$('.bar'), $('#rm-hot'), $('#rm-credit'), $('#rm-hint'), $('#rm-nav')].forEach(e => e && (on ? e.setAttribute('inert', '') : e.removeAttribute('inert')));
 
@@ -35,11 +37,42 @@ export async function start({ role, theme }) {
   }
   const syncCv = () => { if (!cvNode) return; $('.rm-cv-role', cvNode).textContent = ROLES[curRole].label; $$('.cv-dl', cvNode).forEach(a => a.href = cvHref(curRole)); };
 
+  /* the Rubik's cube controls: buttons, move counter, timer, key hints and a live region for the "solved" announcement (inside the dialog, so it is heard) */
+  const live = msg => { const l = $('.rc-live', cubeNode); if (!l) return; l.textContent = ''; setTimeout(() => { l.textContent = msg; }, 60); say(msg, true); };
+  const showCube = i => {
+    if (!cubeNode) return; $('.rc-moves', cubeNode).textContent = i.moves; $('.rc-time', cubeNode).textContent = fmtT(i.seconds);
+    if (i.running && !tickI) tickI = setInterval(() => { const n = room.rubik && room.rubik.info(); if (!n || !n.running || !cubeNode.isConnected) { clearInterval(tickI); tickI = 0; } if (n) $('.rc-time', cubeNode).textContent = fmtT(n.seconds); }, 250);
+  };
+  function rubikPanel() {
+    if (cubeNode) return cubeNode;
+    cubeNode = document.createElement('div'); cubeNode.className = 'rm-cube';
+    cubeNode.innerHTML = `<p class="lead">Drag a sticker to turn that layer. Drag the space around the cube to turn the whole thing.</p>`
+      + `<dl class="rm-cube-stats"><div><dt>Moves</dt><dd class="rc-moves">0</dd></div><div><dt>Time</dt><dd class="rc-time">0:00</dd></div></dl>`
+      + `<div class="rm-cube-btns"><button type="button" class="btn pri" data-act="scramble">Scramble</button><button type="button" class="btn" data-act="solve">Solve</button><button type="button" class="btn" data-act="reset">Reset</button></div>`
+      + `<p class="rm-cube-keys"><kbd>U</kbd> <kbd>D</kbd> <kbd>L</kbd> <kbd>R</kbd> <kbd>F</kbd> <kbd>B</kbd> turn the face that is up, down, left, right, front or back (hold <kbd>Shift</kbd> to turn it the other way) · arrow keys turn the whole cube · <kbd>Space</kbd> scrambles · <kbd>Enter</kbd> solves · <kbd>Esc</kbd> closes</p>`
+      + `<p class="sr rc-live" role="status" aria-live="polite"></p>`;
+    cubeNode.addEventListener('click', e => {
+      const b = e.target.closest('button[data-act]'); if (!b || !room.rubik) return; const a = b.dataset.act;
+      if (a === 'scramble') live('Scrambling the cube'); else if (a === 'reset') live('Cube reset'); else if (a === 'solve' && !room.rubik.info().solved) live('Solving'); else if (a === 'solve') return live('The cube is already solved');
+      room.rubik[a]();
+    });
+    return cubeNode;
+  }
+  function mochiPanel() {
+    if (mochiNode) return mochiNode;
+    mochiNode = document.createElement('div'); mochiNode.className = 'rm-mochi';
+    mochiNode.innerHTML = `<p class="lead"><b>Mochi</b> · Chief Quality Officer</p><p>Approves every release by sitting on it.</p>`
+      + `<ul class="rm-mochi-facts"><li><span>Status</span> asleep, mostly</li><li><span>Approval process</span> a slow blink</li><li><span>Known issues</span> will not get off the keyboard</li></ul>`
+      + `<p><button type="button" class="btn pri" data-act="pet">Say hello</button></p>`;
+    mochiNode.addEventListener('click', e => { if (e.target.closest('[data-act="pet"]')) { room.react('mochi'); say('Mochi gives you a slow blink'); } });
+    return mochiNode;
+  }
+
   /* move a section into the dialog (a comment keeps its place), and back */
   function restore() { if (!cur) return; cur.moved.forEach(({ node, ph }) => ph ? ph.replaceWith(node) : node.remove()); cur = null; }
   function fill(k, label) {
     restore(); const moved = [];
-    if (k === 'cv') { const n = cvPanel(); body.appendChild(n); moved.push({ node: n }); syncCv(); }
+    if (k === 'cv' || k === 'rubik' || k === 'mochi') { const n = { cv: cvPanel, rubik: rubikPanel, mochi: mochiPanel }[k](); body.appendChild(n); moved.push({ node: n }); if (k === 'cv') syncCv(); else if (k === 'rubik') showCube(room.rubik.info()); }
     else for (const sel of SECTIONS[k] ? SECTIONS[k][1] : [k]) {
       const node = typeof sel === 'string' ? $(sel) : sel; if (!node) continue;
       const ph = document.createComment('room:' + (node.id || sel)); node.replaceWith(ph); body.appendChild(node); moved.push({ node, ph });
@@ -49,7 +82,7 @@ export async function start({ role, theme }) {
   }
 
   function show(k, label) {
-    clearTimeout(closeT); fill(k, label ?? (SECTIONS[k] ? SECTIONS[k][0] : k === 'cv' ? 'Download CV' : k));
+    clearTimeout(closeT); fill(k, label ?? (SECTIONS[k] ? SECTIONS[k][0] : TITLES[k] ?? k));
     const first = panel.hidden; panel.hidden = false; setInert(true);
     requestAnimationFrame(() => panel.classList.add('open')); if (first) title.focus({ preventScroll: true }); else title.focus({ preventScroll: true });
     $('#rm-hint')?.classList.add('gone');
@@ -88,6 +121,7 @@ export async function start({ role, theme }) {
     const a = f[0], z = f[f.length - 1];
     if (e.shiftKey && (document.activeElement === a || document.activeElement === title)) { e.preventDefault(); z.focus(); } else if (!e.shiftKey && document.activeElement === z) { e.preventDefault(); a.focus(); }
   });
+  document.addEventListener('keydown', e => { if (cur && cur.key === 'rubik' && !panel.hidden && room.rubik && room.rubik.key(e)) e.preventDefault(); });   // cube keys work wherever focus is (clicking the canvas drops it to the page)
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && (!panel.hidden || pending)) { e.preventDefault(); close(); } });
   $('#rm-x').addEventListener('click', close);
   $('#rm-credit').addEventListener('click', e => { e.preventDefault(); lastPin = $('#rm-credit'); openKey('credits'); });
@@ -104,6 +138,7 @@ export async function start({ role, theme }) {
     onProgress: p => { bar.style.transform = `scaleX(${p.toFixed(3)})`; },
     onActivate: k => k ? openKey(k) : (cur && close()),
     onToast: say, onPan,
+    onCube: (type, i) => { if (type === 'change') showCube(i); else live(i.how === 'player' ? `Solved in ${i.moves} moves, ${fmtT(i.seconds)}. Nice.` : 'Solved.'); },
   });
   root.classList.add('room-on'); load.classList.add('done'); setTimeout(() => { load.remove(); root.classList.add('room-live'); }, 650);
   setTimeout(() => $('#rm-hint')?.classList.add('gone'), 9000);

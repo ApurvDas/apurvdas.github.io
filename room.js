@@ -15,8 +15,8 @@ const ACC = { all: '#8fb4ff', qa: '#6fd3ac', systems: '#8fb4ff', web: '#f2a27b',
 const DESK_Y = .75, CX = -.15;                    // desk top height, desk centre x
 const PROJECTS = ['wreckbox', 'dasvis', 'pm', 'unigen', 'netrisk', 'ciba', 'focus', 'khaata'];
 const BOX_LABEL = { wreckbox: 'WreckBox', dasvis: 'DasVis', pm: 'Project Mgr', unigen: 'Unigen', netrisk: 'NetRisk AI', ciba: 'Ciba', focus: 'Focus', khaata: 'Khaata' };
-export const PANEL_KEYS = ['numbers', 'releases', 'skills', 'experience', ...PROJECTS, 'cv', 'summit'];
-const LABELS = { numbers: 'By the numbers', releases: 'Shipping log', skills: 'Skills', experience: 'Experience', cv: 'Download CV', summit: 'Contact', rubik: 'Rubik’s cube', lamp: 'Desk lamp', chair: 'Office chair', ...Object.fromEntries(PROJECTS.map(p => [p, NAMES[p]])) };
+export const PANEL_KEYS = ['numbers', 'releases', 'skills', 'experience', ...PROJECTS, 'cv', 'summit', 'rubik', 'mochi'];
+const LABELS = { numbers: 'By the numbers', releases: 'Shipping log', skills: 'Skills', experience: 'Experience', cv: 'Download CV', summit: 'Contact', rubik: 'Rubik’s cube', lamp: 'Desk lamp', chair: 'Gaming chair', mochi: 'Mochi', ...Object.fromEntries(PROJECTS.map(p => [p, NAMES[p]])) };
 
 /* ---------- canvas helpers ---------- */
 function canvasTex(w, h, draw) {
@@ -113,7 +113,7 @@ function drawWood(ctx, w, h, base, dark, planks) {
 const mulberry = a => () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
 
 /* ================================================================================================================================ */
-export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'light', onProgress, onActivate, onToast, onPan }) {
+export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'light', onProgress, onActivate, onToast, onPan, onCube }) {
   const qs = new URLSearchParams(location.search);
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: qs.get('aa') !== '0', powerPreference: 'high-performance' });
   const gpuName = (() => { try { const gl = renderer.getContext(), e = gl.getExtension('WEBGL_debug_renderer_info'); return String(gl.getParameter(e ? e.UNMASKED_RENDERER_WEBGL : gl.RENDERER)); } catch { return ''; } })();
@@ -234,10 +234,8 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
     thing('summit', [ps, pen], { x: -1.1, y: DESK_Y, z: -.25, fit: 2.8, pad: .02, dir: [.75, .6, 1] }); blob(-1.1, DESK_Y, -.25, .34, .42, .25); }
   // lamp: clamped to the left edge of the desk; its head carries the warm light
   let lampThing; { const la = inst('lamp'); lampThing = thing('lamp', [place(la, { ry: Math.PI / 2 + .35 })], { x: -1.22, y: DESK_Y, z: -.55, fit: 1.9 }); lampThing.lampOn = 1; lampThing.lampT = 1; }
-  // rubik's cube
+  // rubik's cube: this is the desk prop; clicking it opens the playable cube (rubik.js, built on first open)
   const rubik = thing('rubik', [place(inst('rubik'), { ry: .4 })], { x: -.5, y: DESK_Y, z: -.1, pad: .03, fit: 4 }); blob(-.5, DESK_Y, -.1, .12, .12);
-  rubik.q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, .4, 0)); rubik.fly = 0; rubik.axis = new THREE.Vector3(1, 0, 0); rubik.qT = rubik.q.clone();
-  rubik.pivot.children[0].rotation.set(0, 0, 0); rubik.pivot.children[0].quaternion.copy(rubik.q);
   // chair (spins when clicked)
   const chairM = inst('chair'); fix(chairM, m => { if (m.color && m.color.getHex() === 0 && !m.map) { m.color.set(0x3a3f4a); m.roughness = .85; } });
   const chair = thing('chair', [place(chairM, { ry: Math.PI })], { x: -1.1, y: 0, z: .45, fit: 1.6 }); chair.pivot.rotation.y = .55; chair.spin = 0; chair.spinV = 0; blob(-1.1, 0, .45, .8, .8);
@@ -284,7 +282,7 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
     const b = document.createElement('button'); b.type = 'button'; b.className = 'rm-pin'; b.dataset.key = k; b.hidden = true;
     b.innerHTML = `<span class="rm-dot" aria-hidden="true"></span><span class="rm-lab">${LABELS[k]}</span>`;
     b.setAttribute('aria-haspopup', PANEL_KEYS.includes(k) ? 'dialog' : 'false');
-    if (!PANEL_KEYS.includes(k)) b.setAttribute('aria-label', { rubik: 'Rubik’s cube: give it a spin', lamp: 'Desk lamp: switch it on or off', chair: 'Office chair: give it a spin' }[k]);
+    if (!PANEL_KEYS.includes(k)) b.setAttribute('aria-label', { lamp: 'Desk lamp: switch it on or off', chair: 'Gaming chair: give it a spin' }[k]);
     const h = { k, t, b, x: 0, y: 0, v: false };
     b.addEventListener('click', e => { if (e.detail && performance.now() < noClickUntil) return; activate(k); });
     b.addEventListener('focus', () => { if (b.matches(':focus-visible')) { hover(k, true); if (pan.on && (h.x < 44 || h.x > W - 44)) setPan(h.t.anchor.clone().applyMatrix4(h.t.pivot.matrixWorld).x); } }); b.addEventListener('blur', () => hover(null));
@@ -303,8 +301,7 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
   }
   function activate(k) {
     if (PANEL_KEYS.includes(k)) { things.filter(t => t.key === k).forEach(t => kick(t, 1.6)); onActivate && onActivate(k); poke(); return; }
-    if (k === 'rubik') { const t = rubik; if (t.fly > 0) return; t.fly = 1e-4; t.axis.set(Math.random() - .5, Math.random(), Math.random() - .5).normalize(); t.qT.setFromEuler(new THREE.Euler(0, Math.floor(Math.random() * 4) * Math.PI / 2 + Math.PI / 4, 0)); t.qStart = t.pivot.children[0].quaternion.clone(); t.active = true; onToast && onToast(['1,152 tests and still can’t solve this', 'Found the bug: it was me, holding it wrong', 'Works on my cube', 'Step 1: reproduce the issue. Step 2: there is no step 2.'][Math.floor(Math.random() * 4)]); poke(); }
-    else if (k === 'lamp') { lampThing.lampT = lampThing.lampT ? 0 : 1; kick(lampThing, 1.2); lampThing.active = true; onToast && onToast(lampThing.lampT ? 'Lamp on' : 'Lamp off'); poke(); }
+    if (k === 'lamp') { lampThing.lampT = lampThing.lampT ? 0 : 1; kick(lampThing, 1.2); lampThing.active = true; onToast && onToast(lampThing.lampT ? 'Lamp on' : 'Lamp off'); poke(); }
     else if (k === 'chair') { chair.spinV += 14 + Math.random() * 6; chair.active = true; onToast && onToast('Wheeee'); poke(); }
   }
 
@@ -344,12 +341,24 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
     if (sheetMQ.matches) { const fit = 1.1 + (t.fit - 1.5) * .25; dist = Math.max(.4, r * fit / (tv * (1 - SHEET)), r * fit * .62 / th); }
     return { p: c.clone().addScaledVector(dir, dist), t: c };
   }
+  /* the playable cube (rubik.js) is loaded and built on the first open, then floats up in front of the camera: flyTo('rubik') frames it like any panel object */
+  let cube = null, cubeLoad = null, wantK = null; const rubikAt = new THREE.Vector3(-.5, DESK_Y + .2, .05), floatAnchor = new THREE.Object3D();
+  floatAnchor.position.copy(rubikAt); scene.add(floatAnchor); floatAnchor.updateMatrixWorld(true);
+  byKey.rubikcube = [{ key: 'rubikcube', ctr: new THREE.Vector3(), pivot: floatAnchor, radius: .2, fit: 1.6, front: 0, dir: [.12, .42, 1], hot: true }];
+  const ensureCube = () => cubeLoad ||= import('./rubik.js').then(({ createCube, selftest }) => {
+    cube = createCube({ scene, camera, canvas, from: new THREE.Vector3(-.5, DESK_Y + .036, -.1), to: rubikAt, reduced: () => matchMedia('(prefers-reduced-motion: reduce)').matches,
+      onChange: i => onCube && onCube('change', i), onSolved: i => onCube && onCube('solved', i), onHidden: () => { rubik.pivot.visible = true; dirty = true; poke(); } });
+    const go = f => (...a) => { const r = f(...a); poke(); return r; };
+    cube.api = { key: go(cube.key), scramble: go(cube.scramble), solve: go(cube.solve), reset: go(cube.reset), info: cube.info, selftest };
+  });
   function flyTo(k) {
+    if (k === 'rubik') { wantK = k; return ensureCube().then(() => { if (wantK !== 'rubik') return; rubik.pivot.visible = false; cube.open(); renderer.compile(scene, camera); poke(); return flyTo('rubikcube'); }); }   // its materials compile now, not in the start-up probe
+    wantK = k;
     const t = byKey[k] && (byKey[k].find(x => x.hot) || byKey[k][0]); if (!t) return Promise.resolve();
     focusK = k; const pose = poseFor(t); cam.pT.copy(pose.p); cam.tT.copy(pose.t); cam.shiftT = 1; cam.moving = true; poke();
     return new Promise(res => setTimeout(res, 420));
   }
-  function release() { focusK = null; cam.pT.copy(home.p); cam.tT.copy(home.t); cam.shiftT = 0; cam.moving = true; poke(); }
+  function release() { focusK = null; wantK = null; if (cube && cube.shown) { cube.close(); poke(); } cam.pT.copy(home.p); cam.tT.copy(home.t); cam.shiftT = 0; cam.moving = true; poke(); }
   const _q = new THREE.Quaternion(), _e = new THREE.Euler(), _v = new THREE.Vector3();
   function stepCamera(dt) {
     const w0 = 8.5, z = .78;   // slightly under-damped: a small settle at the end of a fly-to
@@ -379,13 +388,6 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
       t.pivot.scale.setScalar(1 + t.h * .018);
       for (const m of t.mats) { if (m.basic) m.m.color.setScalar(1 + t.h * .35); else m.m.emissive.copy(m.e).addScalar(t.h * .09); }
       t.active = act; any = any || act;
-    }
-    // rubik: a hop with a few turns; lands on a random quarter turn
-    const r = rubik; if (r.fly > 0) {
-      r.fly += dt / .8; const s = Math.min(1, r.fly), e = 1 - (1 - s) * (1 - s), m = r.pivot.children[0];
-      r.pivot.userData.hop = Math.sin(Math.PI * s) * .32; m.quaternion.copy(r.qStart).slerp(r.qT, e); _q.setFromAxisAngle(r.axis, (1 - e) * Math.PI * 4); m.quaternion.premultiply(_q);
-      r.pivot.position.y = r.pivot.userData.y0 + r.pivot.userData.hop; any = true;
-      if (s >= 1) { r.fly = 0; r.pivot.userData.hop = 0; m.quaternion.copy(r.qT); kick(r, 1.8); }
     }
     // chair
     if (Math.abs(chair.spinV) > .02) { chair.spin += chair.spinV * dt; chair.spinV *= Math.exp(-1.6 * dt); chair.pivot.rotation.y = .55 + chair.spin; any = true; } else if (chair.spinV) { chair.spinV = 0; }
@@ -429,6 +431,7 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
     let more = false;
     if (mix !== mixT) { mix = mix < mixT ? Math.min(mixT, mix + dt / .45) : Math.max(mixT, mix - dt / .45); applyTheme(); more = mix !== mixT; }
     if (stepThings(dt)) more = true;
+    if (cube && cube.step(dt)) more = true;
     stepCamera(dt); if (cam.moving) more = true;
     updateHot(); draw();
     if (more) raf = requestAnimationFrame(frame);
@@ -446,12 +449,14 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
   const rmEl = canvas.parentElement; let down = null, lastHoverT = 0;
   rmEl.addEventListener('pointerdown', e => {
     if (e.button !== 0 || down) return;   // a second finger is ignored (no pinch needed)
+    if (cube && cube.isOpen) { cube.down(e); poke(); return; }   // cube mode: the cube owns the pointer (sticker drag = turn, empty space = orbit)
     const onPin = !!e.target.closest?.('.rm-pin'), touch = e.pointerType !== 'mouse';
     if (!touch && onPin) return;   // a mouse on a pin just clicks it
     down = { id: e.pointerId, x: e.clientX, y: e.clientY, yaw: cam.yawT, pitch: cam.pitchT, px: pan.x, drag: false, pin: onPin, slop: touch ? 10 : 5 };
     if (!touch) canvas.setPointerCapture(e.pointerId);   // touch pointers are captured implicitly
   });
   rmEl.addEventListener('pointermove', e => {
+    if (cube && cube.isOpen) { cube.move(e); poke(); return; }
     if (down) {
       if (e.pointerId !== down.id) return;
       const dx = e.clientX - down.x, dy = e.clientY - down.y; if (!down.drag && Math.hypot(dx, dy) > down.slop) { down.drag = true; canvas.classList.add('drag'); }
@@ -466,12 +471,13 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
     const t = pick(e); hover(t && t.key !== 'kb' && t.key !== 'mouse' && t.key !== 'mug' ? t.key : null);
   });
   rmEl.addEventListener('pointerup', e => {
+    if (cube && cube.isOpen) { cube.up(e); poke(); return; }
     if (!down || e.pointerId !== down.id) return; const d = down; down = null; canvas.classList.remove('drag');
     if (d.drag) { noClickUntil = performance.now() + 150; return; }
     if (d.pin) return;   // a tap on a pin button: its own click opens it
     const t = pick(e); if (t && !['kb', 'mouse', 'mug'].includes(t.key)) activate(t.key); else if (t && t.key !== 'chair') { kick(t, 2); poke(); } else if (!t) onActivate && onActivate(null);
   });
-  rmEl.addEventListener('pointercancel', e => { if (down && e.pointerId === down.id) { down = null; canvas.classList.remove('drag'); } });
+  rmEl.addEventListener('pointercancel', e => { if (cube && cube.isOpen) { cube.up(e, true); poke(); return; } if (down && e.pointerId === down.id) { down = null; canvas.classList.remove('drag'); } });
   canvas.addEventListener('pointerleave', e => { if (!down && e.pointerType === 'mouse') hover(null); });
 
   /* ---------- start-up probe: pick the pixel ratio (and whether reflections are on) once, while the room is still invisible ---------- */
@@ -514,8 +520,9 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
     setTheme(t) { mixT = t === 'dark' ? 1 : 0; poke(); },
     setRole(r) { curRole = r; screens.c.redraw(r); screens.l.redraw(r); screens.r.redraw(r); dirty = true; poke(); },
     hoverKey: hover,
+    get rubik() { return cube && cube.api; },
     get size() { return [W, H, R, tier]; },
     state: () => ({ raf, moving: cam.moving, tier, R, focusK, pan: { ...panState(), x: pan.x, lo: pan.lo, hi: pan.hi } }),
-    dbg: /[?&]debug/.test(location.search) ? { L: THREE.MeshLambertMaterial, renderer, scene, camera, setRes: (r) => { R = r; setRes(); }, things, overlaps } : null,
+    dbg: /[?&]debug/.test(location.search) ? { L: THREE.MeshLambertMaterial, renderer, scene, camera, setRes: (r) => { R = r; setRes(); }, things, cube: () => cube, overlaps } : null,
   };
 }

@@ -488,7 +488,19 @@ html.room:not(.room-on) .rm-hint { opacity: 0; }
 .rm-cv > * + * { margin-top: 16px; }
 .rm-cv h3 { font: 500 .6875rem/1.2 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-top: 28px; }
 .rm-cvs { display: flex; flex-wrap: wrap; gap: 8px; }
-@media (pointer: coarse) { .rm-x span { display: none; } .rm-credit { min-height: 44px; } }
+.rm-cube .lead, .rm-mochi .lead { font-size: 1.0625rem; }
+.rm-cube > * + *, .rm-mochi > * + * { margin-top: 16px; }
+.rm-cube-stats { display: flex; gap: 28px; }
+.rm-cube-stats dt { font: 500 .6875rem/1.2 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.rm-cube-stats dd { margin: 2px 0 0; font: 600 1.75rem/1.1 var(--mono); font-variant-numeric: tabular-nums; }
+.rm-cube-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.rm-cube-btns .btn, .rm-mochi .btn { min-height: 44px; padding: 0 20px; cursor: pointer; }
+.rm-cube-keys { font-size: .8125rem; line-height: 1.9; color: var(--muted); }
+.rm-cube-keys kbd { display: inline-block; min-width: 1.6em; padding: 1px 6px; border: 1px solid var(--hair); border-bottom-width: 2px; border-radius: 5px; background: var(--card); color: var(--ink); font: 500 .75rem/1.4 var(--mono); text-align: center; }
+.rm-mochi-facts { list-style: none; padding: 0; display: grid; gap: 8px; }
+.rm-mochi-facts li { padding: 10px 14px; border: 1px solid var(--hair2); border-radius: 10px; background: var(--card); }
+.rm-mochi-facts span { display: block; font: 500 .6875rem/1.3 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+@media (pointer: coarse) { .rm-x span { display: none; } .rm-credit { min-height: 44px; } .rm-cube-keys { display: none; } }
 @media (max-width: 459px) { .vb-x { display: none; } }
 
 /* ---------- phones and other portrait screens: the panel is a bottom sheet (60% of the screen, so room.js frames the object in the strip above it) ---------- */
