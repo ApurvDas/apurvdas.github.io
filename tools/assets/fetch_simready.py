@@ -5,13 +5,14 @@ keeps assets that fit a dusk-lit control-desk room, downloads only their 256px p
 images, and builds labelled contact sheets so models can be picked by eye.
 
     py tools/assets/fetch_simready.py            # -> level-1/simready-cache/
+    py tools/assets/fetch_simready.py --download dishware_mug_c01 sm_officemonitor_a01_01 ...   # pass 2: USD + Textures only
 
 Never logs in or accepts terms: if a dataset is gated it reports and stops.
 """
 import csv, json, re, shutil, sys, time, urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from huggingface_hub import HfApi, hf_hub_download
+from huggingface_hub import HfApi, hf_hub_download, snapshot_download
 from huggingface_hub.errors import HfHubHTTPError
 from PIL import Image, ImageDraw, ImageFont
 
@@ -143,7 +144,27 @@ def sheets(rows):
     print(f"{len(pages)} contact sheets in {CACHE}")
 
 
+# pass 2: skip thumbs, source files, physics-engine variants/runnables, OmniPBR mdl (the warehouse's small per-material .mdl are kept:
+# usd2glb reads their texture list when a material has no UsdPreviewSurface)
+IGNORE = ["*/.thumbs/*", "*/source_assets/*", "*/.metadata/*", "*OmniPBR*", "*_physx*", "*_mujoco*", "*_newton*",
+          "*/runnables/*", "*/payloads/Physics/*", "*/.simready/*", "*LICENSE*"]
+
+
+def download(names):
+    """snapshot_download only each named asset's folder (base USD, payloads, Textures) into CACHE/models/<dataset>/."""
+    rows = {r["asset"]: r for r in csv.DictReader(open(CACHE / "candidates.csv", encoding="utf-8"))}
+    for n in names:
+        r = rows[n]
+        repo = ASSETS if r["dataset"] == "simready-assets" else WAREHOUSE
+        dest = CACHE / "models" / r["dataset"]
+        retry(lambda: snapshot_download(repo, repo_type="dataset", local_dir=dest,
+                                        allow_patterns=[f'{r["repo_path"]}/**'], ignore_patterns=IGNORE))
+        print("downloaded", n, "->", dest / r["repo_path"])
+
+
 def main():
+    if "--download" in sys.argv:
+        return download(sys.argv[sys.argv.index("--download") + 1:])
     api = HfApi()
     for repo in (ASSETS, WAREHOUSE):  # gated/auth-only -> report and stop (we never log in or accept terms)
         try:
