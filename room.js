@@ -150,7 +150,7 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
   box(WR - WL, .1, .02, trimMat, (WL + WR) / 2, .05, WB + .01); box(.02, .1, 5.2, trimMat, WL + .01, .05, WB + 2.6); box(.02, .1, 5.2, trimMat, WR - .01, .05, WB + 2.6);
   // desk
   const deskMat = std({ map: deskTex.tex }), legMat = std({ color: 0x2b2f38 });
-  const dX0 = -1.35, dX1 = 1.12, dZ0 = -.88, dZ1 = -.02;
+  const dX0 = -1.35, dX1 = 1.16, dZ0 = -.88, dZ1 = -.02;
   box(dX1 - dX0, .04, dZ1 - dZ0, deskMat, (dX0 + dX1) / 2, DESK_Y - .02, (dZ0 + dZ1) / 2);
   for (const x of [dX0 + .05, dX1 - .05]) for (const z of [dZ0 + .05, dZ1 - .05]) box(.05, DESK_Y - .04, .05, legMat, x, (DESK_Y - .04) / 2, z);
   box(dX1 - dX0 - .2, .3, .02, std({ color: 0x3a3f4a }), (dX0 + dX1) / 2, DESK_Y - .2, dZ0 + .07);   // modesty panel
@@ -226,12 +226,12 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
   const mug = inst('mug'); thing('mug', [place(mug, { ry: -Math.PI / 2 - .4 })], { x: -.8, y: DESK_Y, z: -.12, hot: false }); blob(-.8, DESK_Y, -.12, .17, .17);
   // tray with the paper stack = Experience
   { const tray = inst('tray'), ps = inst('paperstack'); place(tray, { ry: Math.PI / 2 }); place(ps, { x: 0, y: .012, z: 0, ry: Math.PI / 2 + .06, s: .9 });
-    thing('experience', [tray, ps], { x: .82, y: DESK_Y, z: -.26, fit: 1.9 }); blob(.82, DESK_Y, -.26, .55, .34); }
+    thing('experience', [tray, ps], { x: .82, y: DESK_Y, z: -.165, fit: 1.9 }); blob(.82, DESK_Y, -.165, .55, .34); }   // z keeps a ~6 cm gap to the printer (see overlaps() under ?debug)
   // printer = CV
-  { const pr = inst('printer'); thing('cv', [place(pr, { ry: 0 })], { x: .88, y: DESK_Y, z: -.62, fit: 1.9, front: 0, dir: [-.1, .3, 1] }); blob(.88, DESK_Y, -.62, .55, .62); }
+  { const pr = inst('printer'); thing('cv', [place(pr, { ry: 0 })], { x: .93, y: DESK_Y, z: -.62, fit: 1.9, front: 0, dir: [-.1, .3, 1] }); blob(.93, DESK_Y, -.62, .55, .62); }
   // second paper stack + pen = Contact
   { const ps = inst('paperstack'), pen = inst('pen'); place(ps, { ry: .25 }); fix(pen, (m, mesh) => { if (!m.transparent) m.color.set(0x1a2233); }); place(pen, { x: .02, y: .0335, z: .02, ry: -.5 });
-    thing('summit', [ps, pen], { x: -1.0, y: DESK_Y, z: -.3, fit: 2.8, pad: .02, dir: [.75, .6, 1] }); blob(-1.0, DESK_Y, -.3, .34, .42, .25); }
+    thing('summit', [ps, pen], { x: -1.1, y: DESK_Y, z: -.25, fit: 2.8, pad: .02, dir: [.75, .6, 1] }); blob(-1.1, DESK_Y, -.25, .34, .42, .25); }
   // lamp: clamped to the left edge of the desk; its head carries the warm light
   let lampThing; { const la = inst('lamp'); lampThing = thing('lamp', [place(la, { ry: Math.PI / 2 + .35 })], { x: -1.22, y: DESK_Y, z: -.55, fit: 1.9 }); lampThing.lampOn = 1; lampThing.lampT = 1; }
   // rubik's cube
@@ -255,6 +255,22 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
     thing(p, [b], { x: RK.x + (col - 1.5) * (bwid + .04), y: SHELF[row] * RK.sy + .006, z: RK.z + .09, fit: 3.4 });
   });
 
+
+  /* ?debug: do any two desk props collide? Each mesh becomes its convex footprint on the floor (hull of its world vertices) plus a height range; two things collide when
+     a pair of meshes overlaps by more than 5 mm in both (separating-axis test on the footprints). The invisible hit boxes and the lamp (its long arm swings over the desk) are left out. */
+  function overlaps() {
+    scene.updateMatrixWorld(true); const v = new THREE.Vector3(), g = .005, bx = [];
+    const hull = pts => { pts.sort((a, b) => a[0] - b[0] || a[1] - b[1]); const cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]), h = [];
+      for (const half of [pts, pts.slice().reverse()]) { const st = []; for (const p of half) { while (st.length > 1 && cr(st[st.length - 2], st[st.length - 1], p) <= 0) st.pop(); st.push(p); } st.pop(); h.push(...st); } return h; };
+    for (const t of things) { if (t.noWobbleY || t.key === 'lamp' || !t.pivot.visible) continue; const ms = [];
+      t.pivot.traverse(m => { if (!m.isMesh || m === t.hit) return; const pa = m.geometry.attributes.position, pts = []; let lo = 1e9, hi = -1e9;
+        for (let i = 0; i < pa.count; i += 2) { v.fromBufferAttribute(pa, i).applyMatrix4(m.matrixWorld); pts.push([v.x, v.z]); lo = Math.min(lo, v.y); hi = Math.max(hi, v.y); } ms.push({ h: hull(pts), lo, hi }); });
+      bx.push([t.key, ms]); }
+    const gap = (A, B) => { let best = 1e9; for (const P of [A, B]) for (let i = 0; i < P.length; i++) { const a = P[i], b = P[(i + 1) % P.length], nx = b[1] - a[1], nz = a[0] - b[0], l = Math.hypot(nx, nz) || 1;   // penetration along this edge normal
+        const pr = Q => Q.map(q => (q[0] * nx + q[1] * nz) / l), pa = pr(A), pb = pr(B); best = Math.min(best, Math.min(Math.max(...pa), Math.max(...pb)) - Math.max(Math.min(...pa), Math.min(...pb))); } return best; };
+    const out = []; for (let i = 0; i < bx.length; i++) for (let j = i + 1; j < bx.length; j++) if (bx[i][1].some(a => bx[j][1].some(c => Math.min(a.hi, c.hi) - Math.max(a.lo, c.lo) > g && gap(a.h, c.h) > g))) out.push(bx[i][0] + ' x ' + bx[j][0]);
+    return out;
+  }
 
   /* ---------- environment (reflections for the metals), only on the high tier ---------- */
   { const pm = new THREE.PMREMGenerator(renderer); envTex = pm.fromScene(new RoomEnvironment(), .04).texture; pm.dispose(); }
@@ -487,6 +503,7 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
   renderer.compile(scene, camera); stepCamera(1 / 60); stepThings(1 / 60); updateHot();
   await probe();
   probing = false; ready = true; applyTheme(); dirty = true; resize(); poke(); onProgress && onProgress(1);
+  if (/[?&]debug/.test(location.search)) { const o = overlaps(); console.info(o.length ? 'desk props overlap: ' + o.join(', ') : 'desk props: no overlaps'); }
   if (/[?&]fps\b/.test(location.search)) { const hud = document.createElement('div'); hud.style.cssText = 'position:fixed;z-index:99;left:8px;top:64px;padding:4px 8px;border-radius:6px;background:#000c;color:#9f9;font:12px/1.3 monospace;pointer-events:none'; document.body.appendChild(hud); let n = 0, t0 = performance.now(); const rf = renderer.render.bind(renderer); renderer.render = (...a) => { n++; rf(...a); }; setInterval(() => { hud.textContent = `${tier}@${R} · ${Math.round(n * 1000 / (performance.now() - t0))} fps drawn · ${probeLog.med} ms probe · ${canvas.width}px`; n = 0; t0 = performance.now(); }, 1000); }
 
   return {
@@ -499,6 +516,6 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
     hoverKey: hover,
     get size() { return [W, H, R, tier]; },
     state: () => ({ raf, moving: cam.moving, tier, R, focusK, pan: { ...panState(), x: pan.x, lo: pan.lo, hi: pan.hi } }),
-    dbg: /[?&]debug/.test(location.search) ? { L: THREE.MeshLambertMaterial, renderer, scene, camera, setRes: (r) => { R = r; setRes(); }, things } : null,
+    dbg: /[?&]debug/.test(location.search) ? { L: THREE.MeshLambertMaterial, renderer, scene, camera, setRes: (r) => { R = r; setRes(); }, things, overlaps } : null,
   };
 }
