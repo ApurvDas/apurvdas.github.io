@@ -1,0 +1,12 @@
+{
+  "name": "simready-assets-tools",
+  "private": true,
+  "type": "module",
+  "description": "Node side of the SimReady pipeline: normal/UV-aware simplify before gltf-transform optimize",
+  "dependencies": {
+    "@gltf-transform/core": "4.5.1",
+    "@gltf-transform/extensions": "4.5.1",
+    "@gltf-transform/functions": "4.5.1",
+    "meshoptimizer": "1.2.0"
+  }
+}
