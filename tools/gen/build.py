@@ -226,6 +226,14 @@ def qa_samples_hero():
             + "".join(f'<a href="{h(u)}">{h(t)}</a>' for t, u in QA_SAMPLES) + '</span>')
 
 
+def credits_html():
+    d = json.load(open(os.path.join(os.path.dirname(__file__), "..", "assets", "assets.json"), encoding="utf8"))
+    li = "".join(f'<li><b>{h(a["short"])}</b> · {h(a["id"])} <span>({h(a["dataset"])})</span></li>' for a in d["assets"])
+    return ('<div class="credits" id="credits"><p>3D models: <a href="https://huggingface.co/datasets/nvidia/simready-assets" rel="noopener">NVIDIA SimReady</a> '
+            '(<a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC BY 4.0</a>), converted and simplified. The room, the desk, the screens and the whiteboard are my own.</p>'
+            f'<details><summary>The {len(d["assets"])} models used</summary><ul>{li}</ul></details></div>')
+
+
 def build():
     A = ROLES["all"]
     exp = "".join(job(j) for j in A["jobs"])
@@ -267,7 +275,7 @@ def build():
             .replace("{{HEADLINE}}", h(A["headline"])).replace("{{TAGLINE}}", h(A["tagline"])).replace("{{AVAIL}}", h(A["avail"]))
             .replace("{{CV_BTN}}", cv_btn().replace("btn cv-dl", "btn pri cv-dl")).replace("{{QA_SAMPLES}}", qa_samples_hero()).replace("{{SUMMARY}}", h(A["summary"].split(" Pick a role")[0])).replace("{{ROUTE}}", route)
             .replace("{{BLOCKS}}", blocks).replace("{{NUMBERS}}", numbers).replace("{{RELEASES}}", releases).replace("{{SKILLS}}", skills)
-            .replace("{{SUMMIT}}", summit).replace("{{MOMO_HERO}}", momo_btn("momo-3d", "▲ Veg momo", "momo-note-3d")))
+            .replace("{{SUMMIT}}", summit).replace("{{CREDITS}}", credits_html()).replace("{{MOMO_HERO}}", momo_btn("momo-3d", "▲ Veg momo", "momo-note-3d")))
     assert "{{" not in html, "unfilled template placeholder: " + html[html.index("{{"):html.index("{{") + 30]
     open(os.path.join(OUT, "index.html"), "w", encoding="utf8", newline="").write(html)
 
@@ -283,7 +291,11 @@ def build():
           f"export const LINKS = {json.dumps([list(l) for l in LINKS], ensure_ascii=False)};\n"
           "// id, label, group, used by\n"
           f"export const SKILLS = {json.dumps([list(s) for s in SKILLS], ensure_ascii=False)};\n"
-          f"export const RELEASES = {json.dumps([dict(id=r['id'], project=r['project'], tag=r['tag'], date=r['date']) for r in RELEASES], ensure_ascii=False)};\n")
+          f"export const RELEASES = {json.dumps([dict(id=r['id'], project=r['project'], tag=r['tag'], date=r['date'], label=r['label'], what=r['what']) for r in RELEASES], ensure_ascii=False)};\n"
+          "// the 3D room (room.js) draws its screens and whiteboard from these\n"
+          f"export const TESTS = {json.dumps(TESTS)};\nexport const TEST_TOTAL = {TEST_TOTAL};\n"
+          f"export const SHORT = {json.dumps(SHORT, ensure_ascii=False)};\n"
+          f"export const GROUPS = {json.dumps(GROUPS, ensure_ascii=False)};\n")
     open(os.path.join(OUT, "data.js"), "w", encoding="utf8", newline="").write(js)
     print(len(html), len(js))
 

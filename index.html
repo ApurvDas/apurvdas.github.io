@@ -28,11 +28,17 @@
 (function(d){var h=d.documentElement;h.classList.add('js');
 try{if(localStorage.getItem('theme')==='dark')h.dataset.theme='dark'}catch(e){}
 var m=/role=(qa|systems|web|ai)/.exec(location.hash);if(m)h.dataset.role=m[1];
-setTimeout(function(){if(!h.classList.contains('ready'))h.classList.add('ready','rv-off')},2500)})(document)
+setTimeout(function(){if(!h.classList.contains('ready'))h.classList.add('ready','rv-off')},2500);
+/* room (3D desk) or classic (the long page): decided once, here, before first paint. An explicit choice (?classic, or the saved one) wins; otherwise
+   narrow screens, reduced motion and Save-Data get the classic page. WebGL failure or a slow GPU fall back later, in main.js. */
+var st='',c=navigator.connection;try{st=localStorage.getItem('view')||''}catch(e){}
+var why=/[?&]classic(?:[=&]|$)/.test(location.search)?'url':st==='classic'?'saved':innerWidth<900?'narrow':matchMedia('(prefers-reduced-motion: reduce)').matches?'reduced':c&&c.saveData?'save-data':'';
+h.classList.add(why?'classic':'room');if(why)h.dataset.why=why})(document)
 </script>
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.min.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/",
   "animejs": "https://cdn.jsdelivr.net/npm/animejs@4.0.2/+esm"
 } }
 </script>
@@ -53,9 +59,23 @@ setTimeout(function(){if(!h.classList.contains('ready'))h.classList.add('ready',
   <a class="brand" href="#top"><span class="b-full">Apurv Das</span><span class="b-short" aria-hidden="true">AD</span></a>
   <div class="roles mini" role="group" aria-label="Role"><button type="button" data-role="all" aria-pressed="true">All</button><button type="button" data-role="qa" aria-pressed="false">QA</button><button type="button" data-role="systems" aria-pressed="false">Systems</button><button type="button" data-role="web" aria-pressed="false">Web</button><button type="button" data-role="ai" aria-pressed="false">AI/ML</button></div>
   <p class="alt-read" aria-hidden="true"><span id="alt">1,650</span> m</p>
+  <button class="view-btn" id="view-btn" type="button" hidden>Classic view</button>
   <button class="switch" id="theme" type="button" role="switch" aria-checked="false" aria-label="Night mode"><span class="sw-l" aria-hidden="true">Night</span><span class="track" aria-hidden="true"><span class="knob"></span></span></button>
   <div class="progress" aria-hidden="true"><i id="progress"></i></div>
 </header>
+
+<section class="rm room-only" id="rm" aria-label="The desk">
+  <canvas id="room" aria-hidden="true"></canvas>
+  <div class="rm-hot" id="rm-hot" role="group" aria-label="Things on the desk. Tab to move between them, Enter to open one."></div>
+  <p class="rm-hint" id="rm-hint" aria-hidden="true">Click an object, or drag to look around</p>
+</section>
+<div class="rm-load room-only" id="rm-load" role="status"><span id="rm-load-t">Setting up the room</span><i><b id="rm-bar"></b></i></div>
+<a class="rm-credit room-only" id="rm-credit" href="#credits">3D model credits</a>
+<div class="rm-toast room-only" id="rm-toast" role="status" aria-live="polite"></div>
+<div class="rm-panel room-only" id="rm-panel" role="dialog" aria-modal="true" aria-labelledby="rm-title" hidden>
+  <header class="rm-ph"><h2 id="rm-title" tabindex="-1"></h2><button class="rm-x" id="rm-x" type="button" aria-label="Close and go back to the room"><span aria-hidden="true">Esc</span> Close</button></header>
+  <div class="rm-body" id="rm-body"></div>
+</div>
 
 <section class="hero" id="top" aria-label="Introduction">
   <div class="hero-in">
@@ -91,6 +111,7 @@ setTimeout(function(){if(!h.classList.contains('ready'))h.classList.add('ready',
       </div>
     </main>
     <footer class="foot-bar glass">
+      <div class="credits" id="credits"><p>3D models: <a href="https://huggingface.co/datasets/nvidia/simready-assets" rel="noopener">NVIDIA SimReady</a> (<a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC BY 4.0</a>), converted and simplified. The room, the desk, the screens and the whiteboard are my own.</p><details><summary>The 14 models used</summary><ul><li><b>monitor</b> · sm_officemonitor_a01_01 <span>(warehouse-01)</span></li><li><b>keyboard</b> · warehouse_computer_keyboard_a01 <span>(simready-assets)</span></li><li><b>mouse</b> · computer_mouse_office_b01 <span>(simready-assets)</span></li><li><b>printer</b> · sm_officeprinter_a01_01 <span>(warehouse-01)</span></li><li><b>rack</b> · rack_h3m_s02 <span>(simready-assets)</span></li><li><b>box-black</b> · SM_Container_C04_Glossy_Black_01 <span>(warehouse-01)</span></li><li><b>box-gray</b> · SM_Container_C04_Gray_01 <span>(warehouse-01)</span></li><li><b>tray</b> · kitchenware_tray_a01 <span>(simready-assets)</span></li><li><b>paperstack</b> · sm_paperstack_a01_01 <span>(warehouse-01)</span></li><li><b>pen</b> · stationery_pen_plastic_a01 <span>(simready-assets)</span></li><li><b>rubik</b> · toys_rubiksCube_a01 <span>(simready-assets)</span></li><li><b>lamp</b> · lighting_taskLight_adjustableArmBench_a01 <span>(simready-assets)</span></li><li><b>mug</b> · dishware_mug_c01 <span>(simready-assets)</span></li><li><b>chair</b> · chair_office_fabric_manager_a01 <span>(simready-assets)</span></li></ul></details></div>
       <p>Plain HTML, CSS and JavaScript. Type is Geist and Geist Mono; the 3D is three.js and the motion anime.js. The map sheet is stylised and decorative, not a survey.</p>
       <p><a href="mailto:apps.apurv2000@gmail.com">apps.apurv2000@gmail.com</a> · <a href="https://github.com/ApurvDas" rel="noopener">github.com/ApurvDas</a> · <a href="https://www.linkedin.com/in/apurv-das-bb2050150" rel="noopener">linkedin.com/in/apurv-das-bb2050150</a></p>
     </footer>
