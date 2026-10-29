@@ -1,0 +1,625 @@
+{
+ "budget": {
+  "tris": 120000,
+  "kb": 6144
+ },
+ "assets": [
+  {
+   "short": "monitor",
+   "dataset": "warehouse-01",
+   "id": "sm_officemonitor_a01_01",
+   "usd": "warehouse-01/Props/general/sm_officemonitor_a01_01/sm_officemonitor_a01_01.usd",
+   "role": "Centre and side monitors: stats dashboard as a render-to-canvas screen",
+   "uses": 3,
+   "simplify": {
+    "ratio": 0.5,
+    "error": 0.05
+   },
+   "texture": 1024,
+   "tris_raw": 7877,
+   "tris": 4032,
+   "bytes": 171572,
+   "bbox_m": [
+    0.542,
+    0.3942,
+    0.1722
+   ],
+   "materials": [
+    {
+     "src": "mdl",
+     "base": true,
+     "normal": true,
+     "orm": true,
+     "name": "opaque__plastic__blue_officemonitor_a"
+    },
+    {
+     "src": "mdl",
+     "base": true,
+     "normal": true,
+     "orm": true,
+     "name": "opaque__plastic__black_officemonitor_a"
+    },
+    {
+     "src": "mdl",
+     "base": true,
+     "normal": true,
+     "orm": true,
+     "name": "opaque__plastic__black_gloss_officemonitor_a"
+    },
+    {
+     "src": "mdl",
+     "base": true,
+     "normal": true,
+     "orm": true,
+     "name": "opaque__metal__glossy_officemonitor_a"
+    },
+    {
+     "src": "mdl",
+     "base": true,
+     "normal": false,
+     "orm": false,
+     "name": "trans__decal__officemonitor_a"
+    },
+    {
+     "src": "mdl",
+     "base": false,
+     "normal": false,
+     "orm": false,
+     "name": "emission"
+    }
+   ],
+   "credit": "sm_officemonitor_a01_01 from NVIDIA SimReady (warehouse-01), CC BY 4.0, converted and simplified"
+  },
+  {
+   "short": "keyboard",
+   "dataset": "simready-assets",
+   "id": "warehouse_computer_keyboard_a01",
+   "usd": "simready-assets/warehouse_computer_keyboard_a01/simready_usd/sm_warehouse_computer_keyboard_a01_01.usd",
+   "role": "Desk set dressing under the centre monitor",
+   "uses": 1,
+   "simplify": {
+    "ratio": 0.3,
+    "error": 0.05
+   },
+   "texture": 1024,
+   "tris_raw": 27378,
+   "tris": 8213,
+   "bytes": 124548,
+   "bbox_m": [
+    0.142,
+    0.0202,
+    0.442
+   ],
+   "materials": [
+    {
+     "src": "preview",
+     "base": true,
+     "normal": true,
+     "orm": true,
+     "name": "m_opaque__plastic__computerKeyboard_a01"
+    }
+   ],
+   "credit": "warehouse_computer_keyboard_a01 from NVIDIA SimReady (simready-assets), CC BY 4.0, converted and simplified"
+  },
+  {
+   "short": "mouse",
+   "dataset": "simready-assets",
+   "id": "computer_mouse_office_b01",
+   "usd": "simready-assets/computer_mouse_office_b01/simready_usd/sm_computer_mouse_office_b01_01.usd",
+   "role": "Desk set dressing beside the keyboard (with its mousepad)",
+   "uses": 1,
+   "simplify": {
+    "ratio": 0.3,
+    "error": 0.05
+   },
+   "texture": 512,
+   "tris_raw": 25858,
+   "tris": 7753,
+   "bytes": 102300,
+   "bbox_m": [
+    0.254,
+    0.0408,
+    0.1906
+   ],
+   "materials": [
+    {
+     "src": "preview",
+     "base": true,
+     "normal": true,
+     "orm": true,
+     "name": "opaque__plastic__glossy_black_a"
+    },
+    {
+     "src": "preview",
+     "base": false,
+     "normal": true,
+     "orm": true,
+     "name": "opaque__plastic__glossy_grey_a"
+    },
+    {
+     "src": "preview",
+     "base": false,
+     "normal": true,
+     "orm": true,
+     "name": "opaque__plastic__glossy_blue_a"
+    },
+    {
+     "src": "preview",
+     "base": true,
+     "normal": true,
+     "orm": true,
+     "name": "opaque__rubber__rough_a"
+    },
+    {
+     "src": "preview",
+     "base": false,
+     "normal": true,
+     "orm": true,
+     "name": "opaque__fabric__glossy_black_a"
+    },
+    {
+     "src": "preview",
+     "base": false,
+     "normal": true,
+     "orm": true,
+     "name": "opaque__rubber__glossy_a"
+    }
+   ],
+   "credit": "computer_mouse_office_b01 from NVIDIA SimReady (simready-assets), CC BY 4.0, converted and simplified"
+  },
+  {
+   "short": "printer",
+   "dataset": "warehouse-01",
+   "id": "sm_officeprinter_a01_01",
+   "usd": "warehouse-01/Props/general/sm_officeprinter_a01_01/sm_officeprinter_a01_01.usd",
+   "role": "Download CV for the current role",
+   "uses": 1,
+   "simplify": {
+    "ratio": 0.4,
+    "error": 0.05
+   },
+   "texture": 1024,
+   "tris_raw": 18408,
+   "tris": 7358,
+   "bytes": 228100,
+   "bbox_m": [
+    0.4064,
+    0.4283,
+    0.5111
+   ],
+   "materials": [
+    {
+     "src": "mdl",
+     "base": false,
+     "normal": true,
+     "orm": true,
+     "name": "opaque__plastic__gray_officeprinter_a"
+    },
+    {
+     "src": "mdl",
+     "base": false,
+     "normal": true,
+     "orm": true,
+     "name": "opaque__plastic__darkgray_officeprinter_a"
+    },
+    {
+     "src": "mdl",
+     "base": true,
+     "normal": true,
+     "orm": true,
+     "name": "opaque__plastic__black_b"
+    },
+    {
+     "src": "mdl",
+     "base": false,
+     "normal": false,
+     "orm": false,
+     "name": "trans__glass__officeprinter_a"
+    },
+    {
+     "src": "mdl",
+     "base": true,
+     "normal": false,
+     "orm": false,
+     "name": "trans__decal__officeprinter_a"
+    }
+   ],
+   "credit": "sm_officeprinter_a01_01 from NVIDIA SimReady (warehouse-01), CC BY 4.0, converted and simplified"
+  },
+  {
+   "short": "rack",
+   "dataset": "simready-assets",
+   "id": "rack_h3m_s02",
+   "usd": "simready-assets/rack_h3m_s02/simready_usd/sm_rack_h3m_s02_01.usd",
+   "role": "Project shelf: holds the labelled project boxes",
+   "uses": 1,
+   "simplify": {
+    "ratio": 0.1,
+    "error": 0.05
+   },
+   "texture": 512,
+   "tris_raw": 284224,
+   "tris": 31669,
+   "bytes": 402536,
+   "bbox_m": [
+    2.8847,
+    3.0,
+    1.1957
+   ],
+   "materials": [
+    {
+     "src": "preview",
+     "base": false,
+     "normal": true,
+     "orm": true,
+     "name": "opaque__metal__painted_blue_glossy_a"
+    },
+    {
+     "src": "preview",
+     "base": false,
+     "normal": true,
+     "orm": true,
+     "name": "opaque__metal__steel_a"
+    },
+    {
+     "src": "preview",
+     "base": false,
+     "normal": true,
+     "orm": true,
+     "name": "opaque__metal__painted_orange_glossy_a"
+    }
+   ],
+   "credit": "rack_h3m_s02 from NVIDIA SimReady (simready-assets), CC BY 4.0, converted and simplified"
+  },
+  {
+   "short": "box-black",
+   "dataset": "warehouse-01",
+   "id": "SM_Container_C04_Glossy_Black_01",
+   "usd": "warehouse-01/Props/general/SM_Container_C04_Glossy_Black_01/SM_Container_C04_Glossy_Black_01.usd",
+   "role": "Project box on the rack (variant 1)",
+   "uses": 1,
+   "simplify": {
+    "ratio": 0.3,
+    "error": 0.05
+   },
+   "texture": 512,
+   "tris_raw": 15202,
+   "tris": 4556,
+   "bytes": 48028,
+   "bbox_m": [
+    0.6,
+    0.4281,
+    0.4004
+   ],
+   "materials": [
+    {
+     "src": "mdl",
+     "base": true,
+     "normal": true,
+     "orm": true,
+     "name": "Plastic_Glossy_Black_A"
+    }
+   ],
+   "credit": "SM_Container_C04_Glossy_Black_01 from NVIDIA SimReady (warehouse-01), CC BY 4.0, converted and simplified"
+  },
+  {
+   "short": "box-gray",
+   "dataset": "warehouse-01",
+   "id": "SM_Container_C04_Gray_01",
+   "usd": "warehouse-01/Props/general/SM_Container_C04_Gray_01/SM_Container_C04_Gray_01.usd",
+   "role": "Project box on the rack (variant 2)",
+   "uses": 1,
+   "simplify": {
+    "ratio": 0.3,
+    "error": 0.05
+   },
+   "texture": 512,
+   "tris_raw": 15202,
+   "tris": 4558,
+   "bytes": 49684,
+   "bbox_m": [
+    0.6,
+    0.4281,
+    0.4004
+   ],
+   "materials": [
+    {
+     "src": "mdl",
+     "base": true,
+     "normal": true,
+     "orm": true,
+     "name": "Plastic_Gray_A"
+    }
+   ],
+   "credit": "SM_Container_C04_Gray_01 from NVIDIA SimReady (warehouse-01), CC BY 4.0, converted and simplified"
+  },
+  {
+   "short": "tray",
+   "dataset": "simready-assets",
+   "id": "kitchenware_tray_a01",
+   "usd": "simready-assets/kitchenware_tray_a01/simready_usd/sm_kitchenware_tray_a01_01.usd",
+   "role": "Experience (in-tray of jobs)",
+   "uses": 1,
+   "simplify": {
+    "ratio": 0.4,
+    "error": 0.05
+   },
+   "texture": 512,
+   "tris_raw": 6152,
+   "tris": 2460,
+   "bytes": 32952,
+   "bbox_m": [
+    0.2673,
+    0.0714,
+    0.4497
+   ],
+   "materials": [
+    {
+     "src": "preview",
+     "base": true,
+     "normal": true,
+     "orm": true,
+     "name": "m_opaque__plastic__tray_a01"
+    }
+   ],
+   "credit": "kitchenware_tray_a01 from NVIDIA SimReady (simready-assets), CC BY 4.0, converted and simplified"
+  },
+  {
+   "short": "paperstack",
+   "dataset": "warehouse-01",
+   "id": "sm_paperstack_a01_01",
+   "usd": "warehouse-01/Props/general/sm_paperstack_a01_01/sm_paperstack_a01_01.usd",
+   "role": "Papers in the tray / next to the printer",
+   "uses": 1,
+   "simplify": {
+    "ratio": 1,
+    "error": 0.05
+   },
+   "texture": 1024,
+   "tris_raw": 712,
+   "tris": 712,
+   "bytes": 540468,
+   "bbox_m": [
+    0.2247,
+    0.0326,
+    0.3081
+   ],
+   "materials": [
+    {
+     "src": "mdl",
+     "base": true,
+     "normal": true,
+     "orm": true,
+     "name": "trans__decal__paperstack_a"
+    },
+    {
+     "src": "mdl",
+     "base": true,
+     "normal": true,
+     "orm": true,
+     "name": "opaque__paper__paperstack_a"
+    }
+   ],
+   "credit": "sm_paperstack_a01_01 from NVIDIA SimReady (warehouse-01), CC BY 4.0, converted and simplified"
+  },
+  {
+   "short": "pen",
+   "dataset": "simready-assets",
+   "id": "stationery_pen_plastic_a01",
+   "usd": "simready-assets/stationery_pen_plastic_a01/simready_usd/sm_stationery_pen_plastic_a01_01.usd",
+   "role": "Contact (pen on the notepad)",
+   "uses": 1,
+   "simplify": {
+    "ratio": 0.04,
+    "error": 0.05
+   },
+   "texture": 512,
+   "tris_raw": 83200,
+   "tris": 3325,
+   "bytes": 52400,
+   "bbox_m": [
+    0.1781,
+    0.0124,
+    0.0146
+   ],
+   "materials": [
+    {
+     "src": "preview",
+     "base": true,
+     "normal": true,
+     "orm": true,
+     "name": "m_opaque__plastic__stationery_pen_a01"
+    },
+    {
+     "src": "preview",
+     "base": true,
+     "normal": true,
+     "orm": true,
+     "channels": [
+      "r",
+      null
+     ],
+     "name": "m_trans__plastic__stationery_pen_a01"
+    }
+   ],
+   "credit": "stationery_pen_plastic_a01 from NVIDIA SimReady (simready-assets), CC BY 4.0, converted and simplified"
+  },
+  {
+   "short": "rubik",
+   "dataset": "simready-assets",
+   "id": "toys_rubiksCube_a01",
+   "usd": "simready-assets/toys_rubiksCube_a01/simready_usd/sm_toys_rubiksCube_a01_01.usda",
+   "role": "Easter egg toy",
+   "uses": 1,
+   "simplify": {
+    "ratio": 0.5,
+    "error": 0.05
+   },
+   "texture": 1024,
+   "tris_raw": 9396,
+   "tris": 4698,
+   "bytes": 166604,
+   "bbox_m": [
+    0.0719,
+    0.0719,
+    0.0719
+   ],
+   "materials": [
+    {
+     "src": "preview",
+     "base": true,
+     "normal": true,
+     "orm": true,
+     "name": "m_opaque__plastic__rubikCube_a01"
+    }
+   ],
+   "credit": "toys_rubiksCube_a01 from NVIDIA SimReady (simready-assets), CC BY 4.0, converted and simplified"
+  },
+  {
+   "short": "lamp",
+   "dataset": "simready-assets",
+   "id": "lighting_taskLight_adjustableArmBench_a01",
+   "usd": "simready-assets/lighting_taskLight_adjustableArmBench_a01/simready_usd/sm_lighting_taskLight_adjustableArmBench_a01_01.usd",
+   "role": "Desk lamp (dusk key light prop)",
+   "uses": 1,
+   "simplify": {
+    "ratio": 0.08,
+    "error": 0.05
+   },
+   "texture": 1024,
+   "tris_raw": 67938,
+   "tris": 5676,
+   "bytes": 104720,
+   "bbox_m": [
+    0.5773,
+    0.5109,
+    0.579
+   ],
+   "materials": [
+    {
+     "src": "preview",
+     "base": true,
+     "normal": true,
+     "orm": true,
+     "name": "m_opaque__plastic__glossy_black_a01"
+    },
+    {
+     "src": "preview",
+     "base": true,
+     "normal": true,
+     "orm": true,
+     "name": "m_opaque__metal__aluminiumClean_a01"
+    },
+    {
+     "src": "preview",
+     "base": true,
+     "normal": true,
+     "orm": true,
+     "name": "m_opaque__plastic__glossy_white_a01"
+    },
+    {
+     "src": "preview",
+     "base": false,
+     "normal": true,
+     "orm": true,
+     "name": "m_opaque__plastic__emissive_white_a01"
+    }
+   ],
+   "credit": "lighting_taskLight_adjustableArmBench_a01 from NVIDIA SimReady (simready-assets), CC BY 4.0, converted and simplified"
+  },
+  {
+   "short": "mug",
+   "dataset": "simready-assets",
+   "id": "dishware_mug_c01",
+   "usd": "simready-assets/dishware_mug_c01/simready_usd/sm_dishware_mug_c01_01.usda",
+   "role": "Mug on the desk (hover wobble)",
+   "uses": 1,
+   "simplify": {
+    "ratio": 0.8,
+    "error": 0.05
+   },
+   "texture": 1024,
+   "tris_raw": 5654,
+   "tris": 4522,
+   "bytes": 99492,
+   "bbox_m": [
+    0.0889,
+    0.1072,
+    0.1277
+   ],
+   "materials": [
+    {
+     "src": "preview",
+     "base": true,
+     "normal": true,
+     "orm": true,
+     "name": "opaque__ceramic__dishware_mug_c01"
+    }
+   ],
+   "credit": "dishware_mug_c01 from NVIDIA SimReady (simready-assets), CC BY 4.0, converted and simplified"
+  },
+  {
+   "short": "chair",
+   "dataset": "simready-assets",
+   "id": "chair_office_fabric_manager_a01",
+   "usd": "simready-assets/chair_office_fabric_manager_a01/simready_usd/sm_chair_office_fabric_manager_a01_01.usd",
+   "role": "Office chair at the desk",
+   "uses": 1,
+   "simplify": {
+    "ratio": 0.18,
+    "error": 0.05
+   },
+   "texture": 512,
+   "tris_raw": 91432,
+   "tris": 16458,
+   "bytes": 408392,
+   "bbox_m": [
+    0.6219,
+    1.0906,
+    0.706
+   ],
+   "materials": [
+    {
+     "src": "preview",
+     "base": true,
+     "normal": true,
+     "orm": true,
+     "name": "opaque__plastic__grainy_standard_a"
+    },
+    {
+     "src": "preview",
+     "base": true,
+     "normal": true,
+     "orm": true,
+     "name": "opaque__metal__chrome_standard_tube_a"
+    },
+    {
+     "src": "preview",
+     "base": false,
+     "normal": true,
+     "orm": true,
+     "name": "opaque__fabric__polyester_gray_glossy_standard_a"
+    },
+    {
+     "src": "preview",
+     "base": false,
+     "normal": true,
+     "orm": true,
+     "name": "opaque__metal__painted_black_mechanism_a"
+    },
+    {
+     "src": "preview",
+     "base": true,
+     "normal": true,
+     "orm": true,
+     "name": "opaque__metal__glossy_standard_screws_a"
+    }
+   ],
+   "credit": "chair_office_fabric_manager_a01 from NVIDIA SimReady (simready-assets), CC BY 4.0, converted and simplified"
+  }
+ ],
+ "totals": {
+  "tris": 114054,
+  "kb": 2472
+ }
+}
