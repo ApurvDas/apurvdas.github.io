@@ -380,12 +380,12 @@ const mqData = matchMedia('(prefers-reduced-data: reduce)'), saveData = () => mq
 const sceneStill = () => { scene && (scene.setReduced(reduce || saveData()), scene.setStatic(saveData())); };
 mqReduce.addEventListener('change', e => { reduce = e.matches; sceneStill(); if (reduce) { $$('.panels').forEach(p => p.classList.add('in')); [...running.keys()].forEach(settle); glass.forEach(showNow); } update(true); });
 
-/* ---------- classic <-> 3D view button. Classic is also what narrow, reduced-motion, Save-Data and no-WebGL visits get on their own. ---------- */
+/* ---------- classic <-> 3D view button. Classic is also what reduced-motion, Save-Data and no-WebGL / slow-GPU visits get on their own. ---------- */
 const vb = $('#view-btn');
 function syncViewBtn() {
   const room = root.classList.contains('room'), why = root.dataset.why;
-  vb.textContent = room ? 'Classic view' : '3D view';
-  vb.hidden = room ? false : !((why === 'url' || why === 'saved') && innerWidth >= 900 && !reduce && !saveData());
+  vb.innerHTML = (room ? 'Classic' : '3D') + '<span class="vb-x"> view</span>';   // "view" drops out on a narrow bar
+  vb.hidden = room ? false : !((why === 'url' || why === 'saved') && !reduce && !saveData());
 }
 vb.addEventListener('click', () => {
   const u = new URL(location.href), toClassic = root.classList.contains('room');

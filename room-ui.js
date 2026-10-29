@@ -22,7 +22,7 @@ export async function start({ role, theme }) {
 
   const say = msg => { toast.textContent = msg; toast.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => toast.classList.remove('show'), 2800); };
   const pinFor = k => $(`.rm-pin[data-key="${k}"]`);
-  const setInert = on => [$('.bar'), $('#rm-hot'), $('#rm-credit'), $('#rm-hint')].forEach(e => e && (on ? e.setAttribute('inert', '') : e.removeAttribute('inert')));
+  const setInert = on => [$('.bar'), $('#rm-hot'), $('#rm-credit'), $('#rm-hint'), $('#rm-nav')].forEach(e => e && (on ? e.setAttribute('inert', '') : e.removeAttribute('inert')));
 
   function cvPanel() {
     if (cvNode) return cvNode;
@@ -92,14 +92,29 @@ export async function start({ role, theme }) {
   $('#rm-x').addEventListener('click', close);
   $('#rm-credit').addEventListener('click', e => { e.preventDefault(); lastPin = $('#rm-credit'); openKey('credits'); });
 
+  /* touch: the first-tap hint and the Desk/Rack buttons (shown only when the frame is too narrow for the whole room and the camera pans) */
+  const coarse = matchMedia('(pointer: coarse)').matches, hint = $('#rm-hint'), nav = $('#rm-nav');
+  const onPan = ({ on, edge }) => {
+    nav.hidden = !on; $$('button', nav).forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.go === edge)));
+    hint.textContent = coarse ? (on ? 'Tap an object · swipe sideways for the rack' : 'Tap an object · drag to look around') : 'Click an object, or drag to look around';
+  };
+  nav.addEventListener('click', e => { const b = e.target.closest('button'); if (b) room.panTo(+b.dataset.go); });
   room = await createRoom({
     canvas: $('#room'), hotLayer: $('#rm-hot'), role, theme,
     onProgress: p => { bar.style.transform = `scaleX(${p.toFixed(3)})`; },
     onActivate: k => k ? openKey(k) : (cur && close()),
-    onToast: say,
+    onToast: say, onPan,
   });
   root.classList.add('room-on'); load.classList.add('done'); setTimeout(() => { load.remove(); root.classList.add('room-live'); }, 650);
   setTimeout(() => $('#rm-hint')?.classList.add('gone'), 9000);
+  if (coarse) { const hot = $('#rm-hot'); hot.classList.add('peek'); setTimeout(() => hot.classList.remove('peek'), 4600); }   // touch has no hover: the markers pulse briefly, then go
+
+  /* bottom sheet (portrait): drag the handle or header down to dismiss */
+  { let d = null; const ph = $('.rm-ph'), grab = $('.rm-grab'), sheet = matchMedia('(orientation: portrait) and (max-width: 900px)');
+    const start = e => { if (!sheet.matches || e.target.closest('button') || e.button > 0) return; d = { id: e.pointerId, y: e.clientY, dy: 0 }; panel.classList.add('dragging'); e.currentTarget.setPointerCapture(e.pointerId); };
+    const move = e => { if (!d || e.pointerId !== d.id) return; d.dy = Math.max(0, e.clientY - d.y); panel.style.transform = `translateY(${d.dy}px)`; };
+    const end = e => { if (!d || e.pointerId !== d.id) return; const go = d.dy > 80; d = null; panel.classList.remove('dragging'); panel.style.transform = ''; if (go) close(); };
+    for (const el of [ph, grab]) { el.addEventListener('pointerdown', start); el.addEventListener('pointermove', move); el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end); } }
   // the credits link is the only way back to focus order after the dialog closes if it opened from there
   const origClose = close;
   const api = {

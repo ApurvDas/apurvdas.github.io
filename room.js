@@ -95,9 +95,10 @@ function drawBoard(ctx, w, h) {
   ctx.fillStyle = '#d2452f'; ctx.font = `600 22px ${MONO}`; ctx.fillText('+ 1,152 tests', 700, 408);
 }
 function drawLabel(ctx, w, h, text, dark) {
-  ctx.clearRect(0, 0, w, h); ctx.fillStyle = dark ? '#e9e5da' : '#f4f1e8'; rr(ctx, 6, 6, w - 12, h - 12, 12); ctx.fill();
-  ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 3; ctx.stroke();
-  ctx.fillStyle = '#16202e'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; let s = 40; ctx.font = `700 ${s}px ${SANS}`; while (ctx.measureText(text).width > w - 40 && s > 18) { s -= 2; ctx.font = `700 ${s}px ${SANS}`; } ctx.fillText(text, w / 2, h / 2 + 2);
+  const k = w / 256;   // authored for 256 px wide
+  ctx.clearRect(0, 0, w, h); ctx.fillStyle = dark ? '#e9e5da' : '#f4f1e8'; rr(ctx, 6 * k, 6 * k, w - 12 * k, h - 12 * k, 12 * k); ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,.35)'; ctx.lineWidth = 3 * k; ctx.stroke();
+  ctx.fillStyle = '#16202e'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; let s = 40 * k; ctx.font = `700 ${s}px ${SANS}`; while (ctx.measureText(text).width > w - 40 * k && s > 18 * k) { s -= 2 * k; ctx.font = `700 ${s}px ${SANS}`; } ctx.fillText(text, w / 2, h / 2 + 2 * k);
 }
 function drawWood(ctx, w, h, base, dark, planks) {
   ctx.fillStyle = base; ctx.fillRect(0, 0, w, h);
@@ -112,7 +113,7 @@ function drawWood(ctx, w, h, base, dark, planks) {
 const mulberry = a => () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
 
 /* ================================================================================================================================ */
-export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'light', onProgress, onActivate, onToast }) {
+export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'light', onProgress, onActivate, onToast, onPan }) {
   const qs = new URLSearchParams(location.search);
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: qs.get('aa') !== '0', powerPreference: 'high-performance' });
   const gpuName = (() => { try { const gl = renderer.getContext(), e = gl.getExtension('WEBGL_debug_renderer_info'); return String(gl.getParameter(e ? e.UNMASKED_RENDERER_WEBGL : gl.RENDERER)); } catch { return ''; } })();
@@ -141,11 +142,11 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
   floorTex.tex.wrapS = floorTex.tex.wrapT = THREE.RepeatWrapping; floorTex.tex.repeat.set(2.2, 1.6);
   const deskTex = canvasTex(1024, 512, (c, w, h) => drawWood(c, w, h, '#a98c6c', 'rgba(60,30,10,.35)', 5)); deskTex.redraw();
   const box = (w, h, d, mat, x, y, z, parent = scene) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); parent.add(m); return m; };
-  const WL = -2.05, WR = 2.95, WB = -.9, WH = 2.8;
+  const WL = -2.05, WR = 2.95, WB = -.9, WH = 2.8, WT = 4.4;   // WH: window/board height; WT: wall height (a portrait frame sees well above 2.8 m)
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(WR - WL, 5.2), std({ map: floorTex.tex })); floor.rotation.x = -Math.PI / 2; floor.position.set((WL + WR) / 2, 0, WB + 2.6); scene.add(floor);
-  const back = new THREE.Mesh(new THREE.PlaneGeometry(WR - WL, WH), wallMat); back.position.set((WL + WR) / 2, WH / 2, WB); scene.add(back);
-  const left = new THREE.Mesh(new THREE.PlaneGeometry(5.2, WH), wallMat); left.rotation.y = Math.PI / 2; left.position.set(WL, WH / 2, WB + 2.6); scene.add(left);
-  const right = new THREE.Mesh(new THREE.PlaneGeometry(5.2, WH), wallMat); right.rotation.y = -Math.PI / 2; right.position.set(WR, WH / 2, WB + 2.6); scene.add(right);
+  const back = new THREE.Mesh(new THREE.PlaneGeometry(WR - WL, WT), wallMat); back.position.set((WL + WR) / 2, WT / 2, WB); scene.add(back);
+  const left = new THREE.Mesh(new THREE.PlaneGeometry(5.2, WT), wallMat); left.rotation.y = Math.PI / 2; left.position.set(WL, WT / 2, WB + 2.6); scene.add(left);
+  const right = new THREE.Mesh(new THREE.PlaneGeometry(5.2, WT), wallMat); right.rotation.y = -Math.PI / 2; right.position.set(WR, WT / 2, WB + 2.6); scene.add(right);
   box(WR - WL, .1, .02, trimMat, (WL + WR) / 2, .05, WB + .01); box(.02, .1, 5.2, trimMat, WL + .01, .05, WB + 2.6); box(.02, .1, 5.2, trimMat, WR - .01, .05, WB + 2.6);
   // desk
   const deskMat = std({ map: deskTex.tex }), legMat = std({ color: 0x2b2f38 });
@@ -187,7 +188,7 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
   const loader = new GLTFLoader(manager); loader.setMeshoptDecoder(MeshoptDecoder);
   const names = ['monitor', 'keyboard', 'mouse', 'printer', 'rack', 'box-black', 'box-gray', 'tray', 'paperstack', 'pen', 'rubik', 'lamp', 'mug', 'chair'];
   const gl = {}; await Promise.all(names.map(async n => { gl[n] = (await loader.loadAsync(`assets/models/${n}.glb`)).scene; }));
-  if (document.fonts) try { await Promise.all([document.fonts.load(`500 17px ${MONO}`), document.fonts.load(`600 22px ${MONO}`), document.fonts.load(`600 40px ${SANS}`), document.fonts.load(`500 21px ${SANS}`), document.fonts.load(`700 29px ${SANS}`)]); } catch { /* system font */ }
+  if (document.fonts) try { await Promise.all([document.fonts.load(`500 17px ${MONO}`), document.fonts.load(`600 22px ${MONO}`), document.fonts.load(`600 40px ${SANS}`), document.fonts.load(`500 21px ${SANS}`), document.fonts.load(`700 29px ${SANS}`), document.fonts.load(`700 40px ${SANS}`)]); } catch { /* system font */ }
   const envMats = [];   // metals and glossy plastics get reflections on the high tier only; the big shell never samples the environment
   const inst = n => { const o = gl[n].clone(true); o.traverse(m => { if (m.isMesh) { m.material = m.material.clone(); if (/metal|chrome|gloss/i.test(m.material.name)) envMats.push(m.material); if (m.material.transparent) { m.material.depthWrite = false; m.material.polygonOffset = true; m.material.polygonOffsetFactor = -2; } } }); return o; };
   const fix = (o, f) => o.traverse(m => m.isMesh && f(m.material, m));
@@ -248,7 +249,7 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
     const row = i < 4 ? 0 : 1, col = i % 4, black = (i + row) % 2 === 0, b = inst(black ? 'box-black' : 'box-gray');
     fix(b, mat => { if (black) { mat.color.set(0x141619); mat.roughness = .5; } });
     place(b, { s: BS });
-    const lab = canvasTex(256, 90, (c, w, h) => drawLabel(c, w, h, BOX_LABEL[p], black)); lab.redraw();
+    const lab = canvasTex(512, 180, (c, w, h) => drawLabel(c, w, h, BOX_LABEL[p], black)); lab.redraw();
     const lw = .6 * .78, lp = new THREE.Mesh(new THREE.PlaneGeometry(lw, lw * 90 / 256), new THREE.MeshBasicMaterial({ map: lab.tex, transparent: true, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -3 }));
     lp.position.set(0, .2, .2 + .006); b.add(lp);   // the label is a child of the (scaled) box, so it is in the box's own units
     thing(p, [b], { x: RK.x + (col - 1.5) * (bwid + .04), y: SHELF[row] * RK.sy + .006, z: RK.z + .09, fit: 3.4 });
@@ -260,7 +261,7 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
   const setEnv = on => envMats.forEach(m => { m.userData.m0 ??= m.metalness; m.envMap = on ? envTex : null; m.metalness = on ? m.userData.m0 : Math.min(m.userData.m0, .3); m.needsUpdate = true; });   // no reflections on the low tier: metals fall back to painted-looking colour
 
   /* ---------- hotspots (real buttons over each object) ---------- */
-  const hot = [];
+  const hot = []; let noClickUntil = 0;   // a drag that ends on a pin must not also click it
   const order = ['numbers', 'releases', 'skills', 'experience', ...PROJECTS, 'cv', 'summit', 'rubik', 'lamp', 'chair'];
   order.forEach(k => {
     const t = byKey[k].find(x => x.hot); if (!t) return;
@@ -268,9 +269,11 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
     b.innerHTML = `<span class="rm-dot" aria-hidden="true"></span><span class="rm-lab">${LABELS[k]}</span>`;
     b.setAttribute('aria-haspopup', PANEL_KEYS.includes(k) ? 'dialog' : 'false');
     if (!PANEL_KEYS.includes(k)) b.setAttribute('aria-label', { rubik: 'Rubik’s cube: give it a spin', lamp: 'Desk lamp: switch it on or off', chair: 'Office chair: give it a spin' }[k]);
-    b.addEventListener('click', () => activate(k)); b.addEventListener('focus', () => { if (b.matches(':focus-visible')) hover(k, true); }); b.addEventListener('blur', () => hover(null));
-    b.addEventListener('pointerenter', () => hover(k)); b.addEventListener('pointerleave', () => hover(null));
-    hotLayer.appendChild(b); hot.push({ k, t, b, x: 0, y: 0, v: false });
+    const h = { k, t, b, x: 0, y: 0, v: false };
+    b.addEventListener('click', e => { if (e.detail && performance.now() < noClickUntil) return; activate(k); });
+    b.addEventListener('focus', () => { if (b.matches(':focus-visible')) { hover(k, true); if (pan.on && (h.x < 44 || h.x > W - 44)) setPan(h.t.anchor.clone().applyMatrix4(h.t.pivot.matrixWorld).x); } }); b.addEventListener('blur', () => hover(null));
+    b.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse') hover(k); }); b.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') hover(null); });   // no hover on touch: a tap opens
+    hotLayer.appendChild(b); hot.push(h);
   });
 
   /* ---------- hover, wobble, activation ---------- */
@@ -293,17 +296,36 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
   const cam = { p: new THREE.Vector3(), pv: new THREE.Vector3(), t: new THREE.Vector3(), tv: new THREE.Vector3(), pT: new THREE.Vector3(), tT: new THREE.Vector3(), shift: 0, shiftV: 0, shiftT: 0, yaw: 0, pitch: 0, yawT: 0, pitchT: 0, moving: true };
   const home = { p: new THREE.Vector3(), t: new THREE.Vector3() };
   const STAGE = { cx: .8, cy: 1.1, cz: -.35, w: 4.5, h: 2.9 };
+  /* Portrait frames (aspect < 1.05): the camera frames the desk across the full width and the rack is reached by panning sideways (drag, or the Desk/Rack
+     buttons, or Tab to a rack pin). The fov widens with the narrowness so the camera does not sit 9 m away. All of it is derived from the aspect. */
+  const DESK_W = 2.3, DESK_X = -.12, SHEET = .6;   // desk width to fit, desk-centred pan position, sheet height as a fraction of the screen (see .rm-panel)
+  const sheetMQ = matchMedia('(orientation: portrait) and (max-width: 900px)');   // same query as the bottom-sheet CSS
+  const pan = { on: false, touched: false, lo: STAGE.cx, hi: STAGE.cx, x: STAGE.cx, d: 5, vw: 4.5, ins: 0 };
+  const panState = () => ({ on: pan.on, edge: pan.x > (pan.lo + pan.hi) / 2 ? 1 : 0 });
   let focusK = null;
+  function setHome() {
+    const ty = STAGE.cy - .02 - (pan.on ? .3 : 0);   // portrait: the desk sits a little above the middle, less empty wall on top
+    home.t.set(pan.x, ty, STAGE.cz); home.p.set(pan.x + pan.d * .1, ty + pan.d * .2 + .17, STAGE.cz + pan.d);
+    if (!focusK) { cam.pT.copy(home.p); cam.tT.copy(home.t); cam.moving = true; poke(); }
+  }
+  function setPan(x) { pan.touched = true; pan.x = clamp(x, pan.lo, pan.hi); setHome(); onPan && onPan(panState()); }
   function fitHome() {
-    const a = W / H, tv = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)), th = tv * a;
-    const d = Math.max(STAGE.w / 2 / th, STAGE.h / 2 / tv) + .5;
-    home.t.set(STAGE.cx, STAGE.cy - .02, STAGE.cz); home.p.set(STAGE.cx + d * .1, STAGE.cy + d * .2 + .15, STAGE.cz + d);
+    const a = W / H, portrait = a < 1.05; camera.fov = portrait ? 34 + 18 * sm(1.05, .5, a) : 34;
+    const bar = document.querySelector('.bar')?.offsetHeight || 56; pan.ins = bar * (1 - sm(430, 700, H));   // short (landscape phone) frames lose the header's height
+    const tv = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)), th = tv * a, dH = STAGE.h / 2 / (tv * (H - pan.ins) / H);
+    const d = (portrait ? Math.max(dH, DESK_W / 2 / th) : Math.max(STAGE.w / 2 / th, dH)) + .5;
+    pan.d = d; pan.vw = 2 * th * d; pan.lo = DESK_X; pan.hi = Math.max(DESK_X, WR - pan.vw / 2); pan.on = portrait && pan.hi - pan.lo > .15;
+    pan.x = pan.on ? (pan.touched ? clamp(pan.x, pan.lo, pan.hi) : pan.lo) : STAGE.cx;
+    setHome(); onPan && onPan(panState());
   }
   function poseFor(t) {
     const c = t.ctr.clone().applyMatrix4(t.pivot.matrixWorld), r = t.radius;
     const front = new THREE.Vector3(Math.sin(t.front), 0, Math.cos(t.front)), toHome = home.p.clone().sub(c).setY(0).normalize();
     const dir = t.dir ? new THREE.Vector3(...t.dir).normalize() : front.multiplyScalar(.5).add(toHome.multiplyScalar(.5)).normalize(); if (!t.dir) dir.y = .22; dir.normalize();
-    const dist = Math.max(.55, r / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * t.fit);
+    const tv = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)), th = tv * W / H;
+    // bottom sheet: the object goes in the strip above it (1 - SHEET of the height) and fills most of the width, a bit tighter than the side-panel framing
+    let dist = Math.max(.55, r / tv * t.fit);
+    if (sheetMQ.matches) { const fit = 1.1 + (t.fit - 1.5) * .25; dist = Math.max(.4, r * fit / (tv * (1 - SHEET)), r * fit * .62 / th); }
     return { p: c.clone().addScaledVector(dir, dist), t: c };
   }
   function flyTo(k) {
@@ -323,7 +345,9 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
     if (!cam.moving) { cam.p.copy(cam.pT); cam.t.copy(cam.tT); cam.shift = cam.shiftT; cam.pv.set(0, 0, 0); cam.tv.set(0, 0, 0); cam.shiftV = 0; }
     _q.setFromEuler(_e.set(cam.pitch, cam.yaw, 0, 'YXZ')); camera.position.copy(cam.t).add(_v.copy(cam.p).sub(cam.t).applyQuaternion(_q)); camera.lookAt(cam.t);
     camera.updateMatrixWorld();
-    if (Math.abs(cam.shift) > 1e-4) camera.setViewOffset(W, H, cam.shift * W * .17, 0, W, H); else if (camera.view && camera.view.enabled) camera.clearViewOffset();
+    // the fly-to shifts the picture clear of the panel: left of the side panel, or up above the bottom sheet; short frames also drop below the header
+    const sheet = sheetMQ.matches, ox = sheet ? 0 : cam.shift * Math.max(Math.min(420, W), Math.min(640, .52 * W)) / 2, oy = (sheet ? cam.shift * H * SHEET / 2 : 0) - pan.ins / 2;
+    if (Math.abs(ox) > 1e-3 || Math.abs(oy) > 1e-3) camera.setViewOffset(W, H, ox, oy, W, H); else if (camera.view && camera.view.enabled) camera.clearViewOffset();
   }
 
   /* ---------- per-frame object physics: springs for wobble, the rubik's hop, the chair's spin, the lamp's fade ---------- */
@@ -370,7 +394,7 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
   function updateHot() {
     for (const h of hot) {
       hotPos.copy(h.t.anchor).applyMatrix4(h.t.pivot.matrixWorld); if (h.k === 'lamp') hotPos.y += .08; hotPos.project(camera);
-      const x = (hotPos.x * .5 + .5) * W, y = (-hotPos.y * .5 + .5) * H, v = hotPos.z < 1 && x > -20 && x < W + 20 && y > -20 && y < H + 20;
+      const x = (hotPos.x * .5 + .5) * W, y = (-hotPos.y * .5 + .5) * H, v = hotPos.z < 1;   // off-screen pins stay in the tab order (focusing one pans to it)
       if (v !== h.v) { h.v = v; h.b.hidden = !v; }
       if (v && (Math.abs(x - h.x) > .3 || Math.abs(y - h.y) > .3)) { h.x = x; h.y = y; h.b.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px) translate(-50%,-50%)`; }
     }
@@ -379,7 +403,7 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
   function setRes() { renderer.setPixelRatio(R); renderer.setSize(W, H, false); }
   function resize() {
     const w = Math.max(1, canvas.clientWidth), h = Math.max(1, canvas.clientHeight); if (w === W && h === H && !dirty) return;
-    W = w; H = h; setRes(); camera.aspect = W / H; camera.updateProjectionMatrix(); fitHome();
+    W = w; H = h; setRes(); camera.aspect = W / H; fitHome(); camera.updateProjectionMatrix();
     if (!focusK) { cam.pT.copy(home.p); cam.tT.copy(home.t); if (!ready) { cam.p.copy(home.p); cam.t.copy(home.t); } } else { const p = poseFor((byKey[focusK].find(x => x.hot) || byKey[focusK][0])); cam.pT.copy(p.p); cam.tT.copy(p.t); }
     cam.moving = true; poke();
   }
@@ -397,33 +421,51 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
   document.addEventListener('visibilitychange', () => { if (document.hidden) { cancelAnimationFrame(raf); raf = 0; } else poke(); });
   new ResizeObserver(() => { resize(); }).observe(canvas);
 
-  /* ---------- pointer: hover, click, limited orbit drag ---------- */
+  /* ---------- pointer: hover (mouse), tap/click, limited drag (orbit, or pan in a portrait frame). One handler on #rm so a drag that starts on a pin still works. ---------- */
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(); ray.layers.set(1);
   function pick(e) {
     const r = canvas.getBoundingClientRect(); ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera);
     const h = ray.intersectObjects(pickables, false)[0]; return h ? h.object.userData.thing : null;
   }
-  let down = null, lastHoverT = 0;
-  canvas.addEventListener('pointerdown', e => { if (e.button !== 0) return; down = { x: e.clientX, y: e.clientY, yaw: cam.yawT, pitch: cam.pitchT, drag: false }; canvas.setPointerCapture(e.pointerId); });
-  canvas.addEventListener('pointermove', e => {
+  const rmEl = canvas.parentElement; let down = null, lastHoverT = 0;
+  rmEl.addEventListener('pointerdown', e => {
+    if (e.button !== 0 || down) return;   // a second finger is ignored (no pinch needed)
+    const onPin = !!e.target.closest?.('.rm-pin'), touch = e.pointerType !== 'mouse';
+    if (!touch && onPin) return;   // a mouse on a pin just clicks it
+    down = { id: e.pointerId, x: e.clientX, y: e.clientY, yaw: cam.yawT, pitch: cam.pitchT, px: pan.x, drag: false, pin: onPin, slop: touch ? 10 : 5 };
+    if (!touch) canvas.setPointerCapture(e.pointerId);   // touch pointers are captured implicitly
+  });
+  rmEl.addEventListener('pointermove', e => {
     if (down) {
-      const dx = e.clientX - down.x, dy = e.clientY - down.y; if (!down.drag && Math.hypot(dx, dy) > 5) { down.drag = true; canvas.classList.add('drag'); }
-      if (down.drag && !focusK) { cam.yawT = clamp(down.yaw - dx * .0016, -.2, .2); cam.pitchT = clamp(down.pitch - dy * .001, -.07, .09); cam.moving = true; poke(); }
+      if (e.pointerId !== down.id) return;
+      const dx = e.clientX - down.x, dy = e.clientY - down.y; if (!down.drag && Math.hypot(dx, dy) > down.slop) { down.drag = true; canvas.classList.add('drag'); }
+      if (down.drag && !focusK) {
+        if (pan.on) { pan.touched = true; pan.x = clamp(down.px - dx * pan.vw / W, pan.lo, pan.hi); setHome(); onPan && onPan(panState()); }
+        else cam.yawT = clamp(down.yaw - dx * .0016, -.2, .2);
+        cam.pitchT = clamp(down.pitch - dy * .001, -.07, .09); cam.moving = true; poke();
+      }
       return;
     }
-    if (e.pointerType !== 'mouse') return; const now = performance.now(); if (now - lastHoverT < 40) return; lastHoverT = now;
+    if (e.pointerType !== 'mouse' || e.target !== canvas) return; const now = performance.now(); if (now - lastHoverT < 40) return; lastHoverT = now;
     const t = pick(e); hover(t && t.key !== 'kb' && t.key !== 'mouse' && t.key !== 'mug' ? t.key : null);
   });
-  const up = e => { if (!down) return; const d = down; down = null; canvas.classList.remove('drag'); if (!d.drag) { const t = pick(e); if (t && !['kb', 'mouse', 'mug'].includes(t.key)) activate(t.key); else if (t && t.key !== 'chair') { kick(t, 2); poke(); } else if (!t) onActivate && onActivate(null); } };
-  canvas.addEventListener('pointerup', up); canvas.addEventListener('pointercancel', () => { down = null; canvas.classList.remove('drag'); });
-  canvas.addEventListener('pointerleave', () => { if (!down) hover(null); });
+  rmEl.addEventListener('pointerup', e => {
+    if (!down || e.pointerId !== down.id) return; const d = down; down = null; canvas.classList.remove('drag');
+    if (d.drag) { noClickUntil = performance.now() + 150; return; }
+    if (d.pin) return;   // a tap on a pin button: its own click opens it
+    const t = pick(e); if (t && !['kb', 'mouse', 'mug'].includes(t.key)) activate(t.key); else if (t && t.key !== 'chair') { kick(t, 2); poke(); } else if (!t) onActivate && onActivate(null);
+  });
+  rmEl.addEventListener('pointercancel', e => { if (down && e.pointerId === down.id) { down = null; canvas.classList.remove('drag'); } });
+  canvas.addEventListener('pointerleave', e => { if (!down && e.pointerType === 'mouse') hover(null); });
 
   /* ---------- start-up probe: pick the pixel ratio (and whether reflections are on) once, while the room is still invisible ---------- */
-  const BUDGET = 12.5, defR = Math.min(1.5, Math.max(devicePixelRatio || 1, 1));   // ms per back-to-back frame; this Intel UHD held 60 fps at ~12 ms (GPU time only)
+  const BUDGET = 12.5;   // ms per back-to-back frame; this Intel UHD held 60 fps at ~12 ms (GPU time only)
   let probeLog = null;
   function probe() {
     const g = renderer.getContext(), px = new Uint8Array(4), seen = new Set();
-    const rungs = [['high', defR], ['high', 1.25], ['high', 1], ['low', 1]].filter(([t, r]) => r <= defR + .01 && !seen.has(t + r) && seen.add(t + r));
+    // the pixel ratio is capped at 1.5, or at 2 when the frame is small enough (a phone: DPR 3 would otherwise render 9 pixels per CSS pixel); the probe steps down from there
+    const defR = Math.min(W * H * 4 <= 1.8e6 ? 2 : 1.5, Math.max(devicePixelRatio || 1, 1));
+    const rungs = [['high', defR], ['high', 1.5], ['high', 1.25], ['high', 1], ['low', 1]].filter(([t, r]) => r <= defR + .01 && !seen.has(t + r) && seen.add(t + r));
     if (qs.get('pr')) rungs.splice(0, rungs.length, [qs.get('tier') || 'high', parseFloat(qs.get('pr'))]);
     let i = 0; const trail = [];
     return new Promise((resolve, reject) => {
@@ -451,11 +493,12 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
     keys: order,
     probe: probeLog,
     flyTo, release, activate,
+    panTo(i) { if (pan.on) setPan(i ? pan.hi : pan.lo); },
     setTheme(t) { mixT = t === 'dark' ? 1 : 0; poke(); },
     setRole(r) { curRole = r; screens.c.redraw(r); screens.l.redraw(r); screens.r.redraw(r); dirty = true; poke(); },
     hoverKey: hover,
     get size() { return [W, H, R, tier]; },
-    state: () => ({ raf, moving: cam.moving, tier, R, focusK }),
+    state: () => ({ raf, moving: cam.moving, tier, R, focusK, pan: { ...panState(), x: pan.x, lo: pan.lo, hi: pan.hi } }),
     dbg: /[?&]debug/.test(location.search) ? { L: THREE.MeshLambertMaterial, renderer, scene, camera, setRes: (r) => { R = r; setRes(); }, things } : null,
   };
 }

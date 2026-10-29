@@ -30,9 +30,9 @@ try{if(localStorage.getItem('theme')==='dark')h.dataset.theme='dark'}catch(e){}
 var m=/role=(qa|systems|web|ai)/.exec(location.hash);if(m)h.dataset.role=m[1];
 setTimeout(function(){if(!h.classList.contains('ready'))h.classList.add('ready','rv-off')},2500);
 /* room (3D desk) or classic (the long page): decided once, here, before first paint. An explicit choice (?classic, or the saved one) wins; otherwise
-   narrow screens, reduced motion and Save-Data get the classic page. WebGL failure or a slow GPU fall back later, in main.js. */
+   reduced motion and Save-Data get the classic page (phones get the room; the probe in room.js protects weak ones). WebGL failure or a slow GPU fall back later, in main.js. */
 var st='',c=navigator.connection;try{st=localStorage.getItem('view')||''}catch(e){}
-var why=/[?&]classic(?:[=&]|$)/.test(location.search)?'url':st==='classic'?'saved':innerWidth<900?'narrow':matchMedia('(prefers-reduced-motion: reduce)').matches?'reduced':c&&c.saveData?'save-data':'';
+var why=/[?&]classic(?:[=&]|$)/.test(location.search)?'url':st==='classic'?'saved':matchMedia('(prefers-reduced-motion: reduce)').matches?'reduced':c&&c.saveData?'save-data':'';
 h.classList.add(why?'classic':'room');if(why)h.dataset.why=why})(document)
 </script>
 <script type="importmap">
@@ -68,11 +68,13 @@ h.classList.add(why?'classic':'room');if(why)h.dataset.why=why})(document)
   <canvas id="room" aria-hidden="true"></canvas>
   <div class="rm-hot" id="rm-hot" role="group" aria-label="Things on the desk. Tab to move between them, Enter to open one."></div>
   <p class="rm-hint" id="rm-hint" aria-hidden="true">Click an object, or drag to look around</p>
+  <div class="rm-nav" id="rm-nav" role="group" aria-label="Look at" hidden><button type="button" data-go="0" aria-pressed="true">Desk</button><button type="button" data-go="1" aria-pressed="false">Rack</button></div>
 </section>
 <div class="rm-load room-only" id="rm-load" role="status"><span id="rm-load-t">Setting up the room</span><i><b id="rm-bar"></b></i></div>
 <a class="rm-credit room-only" id="rm-credit" href="#credits">3D model credits</a>
 <div class="rm-toast room-only" id="rm-toast" role="status" aria-live="polite"></div>
 <div class="rm-panel room-only" id="rm-panel" role="dialog" aria-modal="true" aria-labelledby="rm-title" hidden>
+  <div class="rm-grab" aria-hidden="true"></div>
   <header class="rm-ph"><h2 id="rm-title" tabindex="-1"></h2><button class="rm-x" id="rm-x" type="button" aria-label="Close and go back to the room"><span aria-hidden="true">Esc</span> Close</button></header>
   <div class="rm-body" id="rm-body"></div>
 </div>

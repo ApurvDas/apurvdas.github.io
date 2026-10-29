@@ -24,7 +24,7 @@ One page, no framework, no build step. Scrolling carries a cabin up the pass, st
 The page is complete HTML without JavaScript; everything in `main.js` and `scene.js` is enhancement.
 
 ## The 3D room (branch `desk-3d`)
-On wide screens the page opens as a small 3D desk room (`room.js`, `room-ui.js`) built from NVIDIA SimReady models (CC BY 4.0, converted and simplified; see `tools/assets/` and the footer credits). Click or Tab to an object to open its section in a dialog. The long page below is the same content and is the **classic view**: `?classic`, the header button, narrow screens, reduced motion, Save-Data, no WebGL or a slow GPU all show it, and it loads none of the room code. `?debug` exposes `window.__rm`, `?fps` shows a frame counter.
+The page opens as a small 3D desk room (phones too: portrait frames the desk and pan sideways to the rack; panels become bottom sheets) (`room.js`, `room-ui.js`) built from NVIDIA SimReady models (CC BY 4.0, converted and simplified; see `tools/assets/` and the footer credits). Click or Tab to an object to open its section in a dialog. The long page below is the same content and is the **classic view**: `?classic`, the header button, reduced motion, Save-Data, no WebGL or a slow GPU all show it, and it loads none of the room code. `?debug` exposes `window.__rm`, `?fps` shows a frame counter.
 
 ## Run it locally
 
