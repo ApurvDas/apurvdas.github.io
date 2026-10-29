@@ -7,6 +7,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { buildGamingChair } from './chair.js';
+import { createMochi } from './mochi.js';
 import { NAMES, SHORT, ROLES, RELEASES, TESTS, TEST_TOTAL, SKILLS, GROUPS } from './data.js';
 
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
@@ -241,6 +242,11 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
   // gaming chair (spins when clicked): the SimReady office chair's base and gas lift under a seat built in chair.js; it rests turned three-quarters toward the camera so the front reads
   const chairM = inst('chair'); fix(chairM, m => { if (m.color && m.color.getHex() === 0 && !m.map) { m.color.set(0x3a3f4a); m.roughness = .85; } }); buildGamingChair(chairM);
   const chair = thing('chair', [place(chairM, { ry: Math.PI })], { x: -1.1, y: 0, z: .45, fit: 1.6 }); chair.pivot.rotation.y = CH_YAW; chair.spin = 0; chair.spinV = 0; blob(-1.1, 0, .45, .8, .8);
+  // Mochi, curled up in her pink bed on a small round rug in front of the desk's right half (in the frame on phones too). Her pivot is wobbled only a little on hover.
+  const mochi = createMochi({ reduced: () => matchMedia('(prefers-reduced-motion: reduce)').matches }), MX = .62, MZ = .5;
+  { const mr = new THREE.Mesh(new THREE.CircleGeometry(.38, 40), std({ color: 0xcdbca0 })); mr.rotation.x = -Math.PI / 2; mr.position.set(MX, .004, MZ); scene.add(mr); }
+  const mochiT = thing('mochi', [mochi.group], { x: MX, y: 0, z: MZ, fit: .85, dir: [.15, .7, 1] }); mochiT.calm = true; blob(MX, 0, MZ, .9, .9);
+  const mochiReact = () => { mochi.react(camera.position); poke(); };
   // rack against the right-hand wall, 8 boxes, one per project
   const RK = { x: 2.1, z: -.62, sx: .55, sy: .56, sz: .55 }, SHELF = [1.192, 2.59];
   { const rk = inst('rack'); place(rk, { sx: RK.sx, sy: RK.sy, sz: RK.sz }); const g = new THREE.Group(); g.position.set(RK.x, 0, RK.z); g.add(rk); scene.add(g); blob(RK.x, 0, RK.z + .1, 1.9, 1.1); }
@@ -278,7 +284,7 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
 
   /* ---------- hotspots (real buttons over each object) ---------- */
   const hot = []; let noClickUntil = 0;   // a drag that ends on a pin must not also click it
-  const order = ['numbers', 'releases', 'skills', 'experience', ...PROJECTS, 'cv', 'summit', 'rubik', 'lamp', 'chair'];
+  const order = ['numbers', 'releases', 'skills', 'experience', ...PROJECTS, 'cv', 'summit', 'rubik', 'lamp', 'chair', 'mochi'];
   order.forEach(k => {
     const t = byKey[k].find(x => x.hot); if (!t) return;
     const b = document.createElement('button'); b.type = 'button'; b.className = 'rm-pin'; b.dataset.key = k; b.hidden = true;
@@ -294,14 +300,15 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
 
   /* ---------- hover, wobble, activation ---------- */
   let hoverK = null;
-  const kick = (t, s = 1) => { t.av[0] += (Math.random() - .5) * 2.4 * s; t.av[1] += (Math.random() - .5) * 2.4 * s; t.yv += .55 * s; t.active = true; };
+  const kick = (t, s = 1) => { if (t.calm) s *= .12; t.av[0] += (Math.random() - .5) * 2.4 * s; t.av[1] += (Math.random() - .5) * 2.4 * s; t.yv += .55 * s; t.active = true; };
   function hover(k, kb) {
-    if (k === hoverK) return; hoverK = k;
+    if (k === hoverK) return; hoverK = k; if (k === 'mochi') mochiReact();
     things.forEach(t => { const on = t.key === k; if (on && t.hT === 0) kick(t, .7); t.hT = on ? 1 : 0; t.active = true; });
     hot.forEach(h => h.b.classList.toggle('hover', h.k === k)); canvas.style.cursor = k ? 'pointer' : '';
     poke();
   }
   function activate(k) {
+    if (k === 'mochi') mochiReact();
     if (PANEL_KEYS.includes(k)) { things.filter(t => t.key === k).forEach(t => kick(t, 1.6)); onActivate && onActivate(k); poke(); return; }
     if (k === 'lamp') { lampThing.lampT = lampThing.lampT ? 0 : 1; kick(lampThing, 1.2); lampThing.active = true; onToast && onToast(lampThing.lampT ? 'Lamp on' : 'Lamp off'); poke(); }
     else if (k === 'chair') { chair.spinV += 14 + Math.random() * 6; chair.active = true; onToast && onToast('Wheeee'); poke(); }
@@ -434,6 +441,7 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
     if (mix !== mixT) { mix = mix < mixT ? Math.min(mixT, mix + dt / .45) : Math.max(mixT, mix - dt / .45); applyTheme(); more = mix !== mixT; }
     if (stepThings(dt)) more = true;
     if (cube && cube.step(dt)) more = true;
+    if (mochi.step(dt)) more = true;
     stepCamera(dt); if (cam.moving) more = true;
     updateHot(); draw();
     if (more) raf = requestAnimationFrame(frame);
@@ -511,6 +519,9 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
   renderer.compile(scene, camera); stepCamera(1 / 60); stepThings(1 / 60); updateHot();
   await probe();
   probing = false; ready = true; applyTheme(); dirty = true; resize(); poke(); onProgress && onProgress(1);
+  /* Mochi's idle bursts: every 10 to 20 s, only while nothing else is going on (no panel, no cube, tab visible, no reduced motion). Between bursts the loop is stopped. */
+  const idleLoop = () => setTimeout(() => { if (!document.hidden && !focusK && !hoverK && !mochi.busy && !matchMedia('(prefers-reduced-motion: reduce)').matches) { mochi.idle(); poke(); } idleLoop(); }, 10000 + Math.random() * 10000);
+  idleLoop();
   if (/[?&]debug/.test(location.search)) { const o = overlaps(); console.info(o.length ? 'desk props overlap: ' + o.join(', ') : 'desk props: no overlaps'); }
   if (/[?&]fps\b/.test(location.search)) { const hud = document.createElement('div'); hud.style.cssText = 'position:fixed;z-index:99;left:8px;top:64px;padding:4px 8px;border-radius:6px;background:#000c;color:#9f9;font:12px/1.3 monospace;pointer-events:none'; document.body.appendChild(hud); let n = 0, t0 = performance.now(); const rf = renderer.render.bind(renderer); renderer.render = (...a) => { n++; rf(...a); }; setInterval(() => { hud.textContent = `${tier}@${R} · ${Math.round(n * 1000 / (performance.now() - t0))} fps drawn · ${probeLog.med} ms probe · ${canvas.width}px`; n = 0; t0 = performance.now(); }, 1000); }
 
@@ -523,8 +534,9 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
     setRole(r) { curRole = r; screens.c.redraw(r); screens.l.redraw(r); screens.r.redraw(r); dirty = true; poke(); },
     hoverKey: hover,
     get rubik() { return cube && cube.api; },
+    react: k => { if (k === 'mochi') mochiReact(); },
     get size() { return [W, H, R, tier]; },
     state: () => ({ raf, moving: cam.moving, tier, R, focusK, pan: { ...panState(), x: pan.x, lo: pan.lo, hi: pan.hi } }),
-    dbg: /[?&]debug/.test(location.search) ? { L: THREE.MeshLambertMaterial, renderer, scene, camera, setRes: (r) => { R = r; setRes(); }, things, cube: () => cube, overlaps } : null,
+    dbg: /[?&]debug/.test(location.search) ? { L: THREE.MeshLambertMaterial, renderer, scene, camera, setRes: (r) => { R = r; setRes(); }, things, cube: () => cube, mochi, idle: () => { mochi.idle(); poke(); }, overlaps } : null,
   };
 }
