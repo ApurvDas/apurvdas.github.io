@@ -12,6 +12,9 @@ const fmt = n => n.toLocaleString('en-US');
 const mqReduce = matchMedia('(prefers-reduced-motion: reduce)');
 let reduce = mqReduce.matches, A = null;       // A = anime.js, loaded after first paint
 let scene = null;
+/* Room mode (the 3D desk) or classic (this long page): chosen before first paint by the inline script in index.html. In room mode the page is not
+   laid out; its sections are moved into the dialog one at a time (room-ui.js). ROOM goes false only if the room cannot start (no WebGL, too slow). */
+let ROOM = root.classList.contains('room'), ui = null;
 
 const flow = $('#flow'), stations = $('#stations'), rail = $('#rail');
 // layout position from offsetTop, so the entrance transforms below never shift the cable's nodes
@@ -23,6 +26,7 @@ function setTheme(t, persist) {
   root.dataset.theme = t; sw.setAttribute('aria-checked', String(t === 'dark'));
   if (persist) try { localStorage.setItem('theme', t); } catch {}
   if (scene) { scene.setTheme(t); requestAnimationFrame(syncAccent); }
+  if (ui) ui.setTheme(t);
 }
 sw.addEventListener('click', () => setTheme(root.dataset.theme === 'dark' ? 'light' : 'dark', true));
 sw.setAttribute('aria-checked', String(root.dataset.theme === 'dark'));
@@ -40,7 +44,7 @@ function reorder(container, ids, sel = '[data-id]') {
 function applyOrder(r) {
   const R = ROLES[r];
   const blocks = Object.fromEntries($$('[data-block]', flow).map(b => [b.dataset.block, b]));
-  [...R.blocks.map(b => blocks[b]), $('#numbers'), $('#releases'), $('#skills'), $('#summit')].forEach(b => flow.appendChild(b));
+  if (!ROOM) [...R.blocks.map(b => blocks[b]), $('#numbers'), $('#releases'), $('#skills'), $('#summit')].forEach(b => flow.appendChild(b));   // in room mode the sections may be inside the dialog
   reorder($('[data-group="jobs"]'), R.jobs);
   const pg = $('[data-group="projects"]'); reorder(pg, R.projects);
   reorder($('[data-group="panels"]'), R.panels, '.panel');
@@ -68,6 +72,7 @@ function markRole(r) {
 async function switchRole(r, first) {
   const tok = ++switchTok, R = ROLES[r], prev = role; role = r;
   if (first) { markRole(r); applyOrder(r); flipRoute(R); setHeroText(R, true); layout(true); root.classList.add('ready'); return; }
+  if (ui) ui.setRole(r);
   const old = snapshot(); markRole(r); setHeroText(R); flipRoute(R);
   flow.style.opacity = 0; await wait(reduce ? 0 : 150); if (tok !== switchTok) return;
   applyOrder(r); layout(false);
@@ -148,6 +153,7 @@ function sampleCable() {
 const xAtY = y => { const s = R_.samples; if (!s.length) return R_.cx; let lo = 0, hi = s.length - 1; while (lo < hi) { const m = (lo + hi) >> 1; s[m][0] < y ? lo = m + 1 : hi = m; } return s[lo][1]; };
 
 function layout(sizeOnly) {
+  if (ROOM) return;
   const cs = getComputedStyle(root), railW = parseFloat(getComputedStyle(rail).width) || 40;
   R_.w = railW; R_.cx = railW - 12; rail.classList.toggle('narrow', railW < 56);
   R_.nodes = collectNodes(); R_.ys = Object.fromEntries(R_.nodes.map(n => [n.key, n.y]));
@@ -236,7 +242,7 @@ function setCamMode(m) {
   if (m === camMode) return; camMode = m; cam.dataset.mode = m; scene && scene.setMode(m);
 }
 function update(force) {
-  ticking = false;
+  ticking = false; if (ROOM) return;
   const s = scrollY, alt = fmtAlt(altAtScroll(s));
   prog.style.transform = `scaleX(${clamp(s / maxScroll, 0, 1).toFixed(4)})`;
   const txt = fmt(alt); if (altEl.textContent !== txt) { altEl.textContent = txt; altHero.textContent = txt; ruler.style.transform = `scaleX(${clamp((alt - WP.base) / (WP.top - WP.base), 0, 1).toFixed(3)})`; if (dockRefs) dockRefs.alt.textContent = txt + ' m'; }
@@ -250,7 +256,7 @@ function update(force) {
 addEventListener('scroll', () => { if (!ticking) { ticking = true; requestAnimationFrame(() => update()); } }, { passive: true });
 let rzT = 0; addEventListener('resize', () => { clearTimeout(rzT); rzT = setTimeout(() => layout(false), 120); });
 let roT = 0; new ResizeObserver(() => { clearTimeout(roT); roT = setTimeout(() => R_.nodes.length && Math.abs(stations.getBoundingClientRect().height - R_.H) > 1 && layout(false), 80); }).observe(flow);
-new IntersectionObserver(([e]) => root.classList.toggle('hero-roles', e.isIntersecting), { rootMargin: `-${56}px 0px 0px 0px` }).observe($('.role-pick'));
+new IntersectionObserver(([e]) => root.classList.toggle('hero-roles', e.isIntersecting && !ROOM), { rootMargin: `-${56}px 0px 0px 0px` }).observe($('.role-pick'));
 
 /* ============================== connections (hover / focus / tap) ============================== */
 const adj = new Map(), link = (a, b) => { (adj.get(a) || adj.set(a, new Set()).get(a)).add(b); (adj.get(b) || adj.set(b, new Set()).get(b)).add(a); };
@@ -311,7 +317,9 @@ document.addEventListener('click', e => { if (!e.target.closest('.momo')) $$('.m
 document.addEventListener('click', e => {
   const a = e.target.closest('a[href^="#"]'); if (!a || a.getAttribute('href').length < 2) return;
   const t = document.getElementById(decodeURIComponent(a.getAttribute('href').slice(1))); if (!t) return;
-  e.preventDefault(); t.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+  e.preventDefault();
+  if (ROOM) { ui && ui.openId(decodeURIComponent(a.getAttribute('href').slice(1))); return; }   // room mode: open that thing's panel instead of scrolling
+  t.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
   const d = t.closest('details'); if (d) d.open = true;
 });
 
@@ -366,15 +374,30 @@ function armReveals() {
 /* ============================== boot ============================== */
 setTheme(root.dataset.theme, false);
 switchRole(parseRole(), true);
-observeReveals(); armReveals();
+if (ROOM) { glass.forEach(showNow); $$('.panels').forEach(p => p.classList.add('in')); } else { observeReveals(); armReveals(); }
 addEventListener('load', () => document.fonts?.ready.then(() => layout(false)));
 const mqData = matchMedia('(prefers-reduced-data: reduce)'), saveData = () => mqData.matches || !!navigator.connection?.saveData;   // static frame, no travel
 const sceneStill = () => { scene && (scene.setReduced(reduce || saveData()), scene.setStatic(saveData())); };
 mqReduce.addEventListener('change', e => { reduce = e.matches; sceneStill(); if (reduce) { $$('.panels').forEach(p => p.classList.add('in')); [...running.keys()].forEach(settle); glass.forEach(showNow); } update(true); });
 
-// after first paint: motion library, then the scene
+/* ---------- classic <-> 3D view button. Classic is also what narrow, reduced-motion, Save-Data and no-WebGL visits get on their own. ---------- */
+const vb = $('#view-btn');
+function syncViewBtn() {
+  const room = root.classList.contains('room'), why = root.dataset.why;
+  vb.textContent = room ? 'Classic view' : '3D view';
+  vb.hidden = room ? false : !((why === 'url' || why === 'saved') && innerWidth >= 900 && !reduce && !saveData());
+}
+vb.addEventListener('click', () => {
+  const u = new URL(location.href), toClassic = root.classList.contains('room');
+  try { toClassic ? localStorage.setItem('view', 'classic') : localStorage.removeItem('view'); } catch {}
+  toClassic ? u.searchParams.set('classic', '') : u.searchParams.delete('classic');
+  u.search = u.search.replace(/classic=(&|$)/, 'classic$1'); location.href = u.toString();
+});
+syncViewBtn();
+
+// after first paint: classic = motion library + the ropeway scene; room = the 3D desk
 const idle = window.requestIdleCallback ? f => requestIdleCallback(f, { timeout: 700 }) : (f => setTimeout(f, 200));
-idle(async () => {
+async function bootClassic() {
   try {
     A = await import('animejs');
     A = { animate: A.animate, stagger: A.stagger, svg: A.svg, spring: A.createSpring };
@@ -388,11 +411,21 @@ idle(async () => {
     scene = mod.createScene({ canvas: $('#scene'), stallBtn: b3, onStall: (x, y, vis) => { b3.hidden = !(vis && camMode === 'ride'); if (vis) { const hw = (b3.firstElementChild.offsetWidth || 120) / 2 + 8; b3.style.transform = `translate(${clamp(x, hw, innerWidth - hw).toFixed(0)}px,${(y - 22).toFixed(0)}px) translate(-50%,-100%)`; } } });
     scene.setTheme(root.dataset.theme); sceneStill(); scene.setMode(camMode); syncAccent(); update(true);
   } catch (e) { console.warn('3D scene unavailable; the page works without it', e); cam.dataset.mode = 'off'; camMode = 'off'; }
-});
+}
+async function bootRoom() {
+  try { ui = await (await import('./room-ui.js')).start({ role, theme: root.dataset.theme }); }
+  catch (e) {
+    console.warn('The 3D room cannot start; showing the classic page', e);
+    ROOM = false; ui = null; root.classList.remove('room', 'room-on'); root.classList.add('classic'); root.dataset.why = /too slow/.test(String(e && e.message)) ? 'slow' : 'webgl';
+    applyOrder(role); syncViewBtn(); layout(false); update(true); observeReveals(); initMochi(); bootClassic();
+  }
+}
+idle(ROOM ? bootRoom : bootClassic);
 $('.momo-3d').hidden = true;
 if (dock) dock.hidden = false;
 
 /* ============================== Mochi: peeks in while you scroll; the scroll handler only sets a flag and a timer ============================== */
+function initMochi() {
 const mochi = $('#mochi');
 if (mochi) {
   const btn = $('.mochi-btn', mochi), ears = $$('.ear', mochi), eyes = $('.eyes', mochi), pup = $('.pup', mochi), head = $('.head', mochi);
@@ -429,3 +462,5 @@ if (mochi) {
   for (const [ev, on] of [['pointerenter', 1], ['pointerleave', 0], ['focusin', 1], ['focusout', 0]]) mochi.addEventListener(ev, () => hi(on));
   btn.addEventListener('click', () => { hi(true); clearTimeout(tapT); tapT = setTimeout(() => !btn.matches(':hover, :focus-visible') && hi(false), 1600); });
 }
+}
+if (!ROOM) initMochi();
