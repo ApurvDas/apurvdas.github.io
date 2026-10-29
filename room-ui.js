@@ -17,7 +17,7 @@ const cvHref = r => `cv/Apurv-Das-CV-${ROLES[r].cv}.pdf`;
 
 export async function start({ role, theme }) {
   const root = document.documentElement, panel = $('#rm-panel'), body = $('#rm-body'), title = $('#rm-title'), toast = $('#rm-toast'), bar = $('#rm-bar'), load = $('#rm-load');
-  let room = null, cur = null, tok = 0, closeT = 0, toastT = 0, curRole = role, cvNode = null, lastPin = null;
+  let pending = false, room = null, cur = null, tok = 0, closeT = 0, toastT = 0, curRole = role, cvNode = null, lastPin = null;
   const { createRoom, PANEL_KEYS } = await import('./room.js');
 
   const say = msg => { toast.textContent = msg; toast.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => toast.classList.remove('show'), 2800); };
@@ -58,11 +58,12 @@ export async function start({ role, theme }) {
     if (cur && cur.key === k) return;
     const my = ++tok, pin = pinFor(k); if (pin) lastPin = pin;
     if (k === 'cv') { const a = document.createElement('a'); a.href = cvHref(curRole); a.download = ''; document.body.appendChild(a); a.click(); a.remove(); }
-    if (PANEL_KEYS.includes(k)) await room.flyTo(k);
+    if (PANEL_KEYS.includes(k)) { pending = true; await room.flyTo(k); pending = false; }
     if (my !== tok) return; show(k, label);
   }
   function close() {
-    if (!cur && panel.hidden) return; ++tok; panel.classList.remove('open'); setInert(false); room.release();
+    ++tok; pending = false; room.release(); if (!cur && panel.hidden) return;   // also cancels a panel that is still waiting for the fly-in
+    panel.classList.remove('open'); setInert(false);
     const pin = lastPin && lastPin.isConnected ? lastPin : null;
     const done = () => { panel.hidden = true; restore(); };
     const slow = !matchMedia('(prefers-reduced-motion: reduce)').matches; clearTimeout(closeT); if (slow) closeT = setTimeout(done, 300); else done();
@@ -87,7 +88,7 @@ export async function start({ role, theme }) {
     const a = f[0], z = f[f.length - 1];
     if (e.shiftKey && (document.activeElement === a || document.activeElement === title)) { e.preventDefault(); z.focus(); } else if (!e.shiftKey && document.activeElement === z) { e.preventDefault(); a.focus(); }
   });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !panel.hidden) { e.preventDefault(); close(); } });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && (!panel.hidden || pending)) { e.preventDefault(); close(); } });
   $('#rm-x').addEventListener('click', close);
   $('#rm-credit').addEventListener('click', e => { e.preventDefault(); lastPin = $('#rm-credit'); openKey('credits'); });
 

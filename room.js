@@ -116,7 +116,8 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
   const qs = new URLSearchParams(location.search);
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: qs.get('aa') !== '0', powerPreference: 'high-performance' });
   const gpuName = (() => { try { const gl = renderer.getContext(), e = gl.getExtension('WEBGL_debug_renderer_info'); return String(gl.getParameter(e ? e.UNMASKED_RENDERER_WEBGL : gl.RENDERER)); } catch { return ''; } })();
-  if (!renderer.capabilities.isWebGL2 || /swiftshader|llvmpipe|softpipe|basic render/i.test(gpuName)) throw new Error('no usable GPU: ' + gpuName);
+  const giveUp = msg => { try { renderer.dispose(); renderer.forceContextLoss(); } catch { /* already gone */ } throw new Error(msg); };   // free the context before the classic page boots its own
+  if (!renderer.capabilities.isWebGL2 || /swiftshader|llvmpipe|softpipe|basic render/i.test(gpuName)) giveUp('no usable GPU: ' + gpuName);
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.setClearColor(0x0d1020);
   const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(34, 1, .05, 40);
   let W = 1, H = 1, R = 1, raf = 0, last = 0, tier = 'high', dirty = true, probing = true, ready = false, curRole = role;
@@ -430,8 +431,9 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
       const burst = () => {
         const ts = [];
         for (let k = 0; k < 11; k++) { const t0 = performance.now(); renderer.render(scene, camera); g.readPixels(0, 0, 1, 1, g.RGBA, g.UNSIGNED_BYTE, px); if (k > 2) ts.push(performance.now() - t0); }
+        if (document.hidden && !qs.get('pr')) { tier = 'low'; R = 1; setEnv(false); setRes(); probeLog = { tier, R, med: 0, trail: ['hidden'] }; return resolve(); }   // a background tab gives meaningless timings: take the safe rung
         const med = ts.sort((a, b) => a - b)[ts.length >> 1], lastRung = i === rungs.length - 1; trail.push(`${tier}@${R}:${med.toFixed(1)}`);
-        if (med <= BUDGET || lastRung || qs.get('pr')) { probeLog = { tier, R, med: +med.toFixed(1), trail }; return med > 16 && !qs.get('pr') ? reject(new Error('too slow: ' + trail.join(' '))) : resolve(); }
+        if (med <= BUDGET || lastRung || qs.get('pr')) { probeLog = { tier, R, med: +med.toFixed(1), trail }; return med > 16 && !qs.get('pr') ? (() => { try { renderer.dispose(); renderer.forceContextLoss(); } catch { /* gone */ } reject(new Error('too slow: ' + trail.join(' '))); })() : resolve(); }
         i++; apply(); setTimeout(burst, 16);
       };
       apply(); setTimeout(burst, 30);
