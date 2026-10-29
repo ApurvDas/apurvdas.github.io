@@ -230,7 +230,7 @@ def credits_html():
     d = json.load(open(os.path.join(os.path.dirname(__file__), "..", "assets", "assets.json"), encoding="utf8"))
     li = "".join(f'<li><b>{h(a["short"])}</b> · {h(a["id"])} <span>({h(a["dataset"])})</span></li>' for a in d["assets"])
     return ('<div class="credits" id="credits"><p>3D models: <a href="https://huggingface.co/datasets/nvidia/simready-assets" rel="noopener">NVIDIA SimReady</a> '
-            '(<a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC BY 4.0</a>), converted and simplified. The room, the desk, the screens and the whiteboard are my own.</p>'
+            '(<a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC BY 4.0</a>), converted and simplified. The gaming chair is the SimReady office chair base and gas lift under a racing seat I built; the room, the desk, the screens, the whiteboard, the playable Rubik cube, Mochi and her bed are my own.</p>'
             f'<details><summary>The {len(d["assets"])} models used</summary><ul>{li}</ul></details></div>')
 
 

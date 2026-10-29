@@ -563,7 +563,7 @@
    "dataset": "simready-assets",
    "id": "chair_office_fabric_manager_a01",
    "usd": "simready-assets/chair_office_fabric_manager_a01/simready_usd/sm_chair_office_fabric_manager_a01_01.usd",
-   "role": "Office chair at the desk",
+   "role": "Base, castors and gas lift of the gaming chair (the seat, back and arms are built in code)",
    "uses": 1,
    "simplify": {
     "ratio": 0.18,

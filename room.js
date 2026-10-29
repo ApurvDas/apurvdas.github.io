@@ -6,12 +6,14 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { buildGamingChair } from './chair.js';
 import { NAMES, SHORT, ROLES, RELEASES, TESTS, TEST_TOTAL, SKILLS, GROUPS } from './data.js';
 
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
 const sm = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 const MONO = '"Geist Mono", ui-monospace, Consolas, monospace', SANS = '"Geist", system-ui, "Segoe UI", sans-serif';
 const ACC = { all: '#8fb4ff', qa: '#6fd3ac', systems: '#8fb4ff', web: '#f2a27b', ai: '#c4aaf2' };
+const CH_YAW = Math.PI + .45;   // the chair's resting turn about the vertical
 const DESK_Y = .75, CX = -.15;                    // desk top height, desk centre x
 const PROJECTS = ['wreckbox', 'dasvis', 'pm', 'unigen', 'netrisk', 'ciba', 'focus', 'khaata'];
 const BOX_LABEL = { wreckbox: 'WreckBox', dasvis: 'DasVis', pm: 'Project Mgr', unigen: 'Unigen', netrisk: 'NetRisk AI', ciba: 'Ciba', focus: 'Focus', khaata: 'Khaata' };
@@ -236,9 +238,9 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
   let lampThing; { const la = inst('lamp'); lampThing = thing('lamp', [place(la, { ry: Math.PI / 2 + .35 })], { x: -1.22, y: DESK_Y, z: -.55, fit: 1.9 }); lampThing.lampOn = 1; lampThing.lampT = 1; }
   // rubik's cube: this is the desk prop; clicking it opens the playable cube (rubik.js, built on first open)
   const rubik = thing('rubik', [place(inst('rubik'), { ry: .4 })], { x: -.5, y: DESK_Y, z: -.1, pad: .03, fit: 4 }); blob(-.5, DESK_Y, -.1, .12, .12);
-  // chair (spins when clicked)
-  const chairM = inst('chair'); fix(chairM, m => { if (m.color && m.color.getHex() === 0 && !m.map) { m.color.set(0x3a3f4a); m.roughness = .85; } });
-  const chair = thing('chair', [place(chairM, { ry: Math.PI })], { x: -1.1, y: 0, z: .45, fit: 1.6 }); chair.pivot.rotation.y = .55; chair.spin = 0; chair.spinV = 0; blob(-1.1, 0, .45, .8, .8);
+  // gaming chair (spins when clicked): the SimReady office chair's base and gas lift under a seat built in chair.js; it rests turned three-quarters toward the camera so the front reads
+  const chairM = inst('chair'); fix(chairM, m => { if (m.color && m.color.getHex() === 0 && !m.map) { m.color.set(0x3a3f4a); m.roughness = .85; } }); buildGamingChair(chairM);
+  const chair = thing('chair', [place(chairM, { ry: Math.PI })], { x: -1.1, y: 0, z: .45, fit: 1.6 }); chair.pivot.rotation.y = CH_YAW; chair.spin = 0; chair.spinV = 0; blob(-1.1, 0, .45, .8, .8);
   // rack against the right-hand wall, 8 boxes, one per project
   const RK = { x: 2.1, z: -.62, sx: .55, sy: .56, sz: .55 }, SHELF = [1.192, 2.59];
   { const rk = inst('rack'); place(rk, { sx: RK.sx, sy: RK.sy, sz: RK.sz }); const g = new THREE.Group(); g.position.set(RK.x, 0, RK.z); g.add(rk); scene.add(g); blob(RK.x, 0, RK.z + .1, 1.9, 1.1); }
@@ -390,7 +392,7 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
       t.active = act; any = any || act;
     }
     // chair
-    if (Math.abs(chair.spinV) > .02) { chair.spin += chair.spinV * dt; chair.spinV *= Math.exp(-1.6 * dt); chair.pivot.rotation.y = .55 + chair.spin; any = true; } else if (chair.spinV) { chair.spinV = 0; }
+    if (Math.abs(chair.spinV) > .02) { chair.spin += chair.spinV * dt; chair.spinV *= Math.exp(-1.6 * dt); chair.pivot.rotation.y = CH_YAW + chair.spin; any = true; } else if (chair.spinV) { chair.spinV = 0; }
     // lamp on/off fade
     const L = lampThing; if (Math.abs(L.lampOn - L.lampT) > .003) { L.lampOn += (L.lampT - L.lampOn) * (1 - Math.exp(-dt * 8)); any = true; } else L.lampOn = L.lampT;
     return any;
