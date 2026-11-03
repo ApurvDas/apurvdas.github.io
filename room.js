@@ -176,7 +176,7 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
   box(bw + .06, bh + .06, .03, std({ color: 0xc8ccd2 }), 0, 0, 0, boardG);
   const boardFace = new THREE.Mesh(new THREE.PlaneGeometry(bw, bh), new THREE.MeshLambertMaterial({ map: board.tex })); boardFace.position.z = .017; boardG.add(boardFace);
   // rug under the chair
-  const rug = new THREE.Mesh(new THREE.CircleGeometry(.72, 48), std({ color: 0x3d5a6c })); rug.rotation.x = -Math.PI / 2; rug.position.set(-1.25, .003, .32); rug.scale.y = .78; scene.add(rug);
+  const rug = new THREE.Mesh(new THREE.CircleGeometry(.72, 48), std({ color: 0x3d5a6c })); rug.rotation.x = -Math.PI / 2; rug.position.set(-1.2, .003, .5); rug.scale.y = .78; scene.add(rug);
 
   /* ---------- contact shadows (blob textures) ---------- */
   const blobTex = canvasTex(128, 128, (c, w, h) => { const g = c.createRadialGradient(64, 64, 4, 64, 64, 62); g.addColorStop(0, 'rgba(0,0,0,.65)'); g.addColorStop(.55, 'rgba(0,0,0,.28)'); g.addColorStop(1, 'rgba(0,0,0,0)'); c.fillStyle = g; c.fillRect(0, 0, w, h); }); blobTex.redraw();
@@ -242,9 +242,10 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
   // rubik's cube: this is the desk prop; clicking it opens the playable cube (rubik.js, built on first open)
   const rubik = thing('rubik', [place(inst('rubik'), { ry: .4 })], { x: -.5, y: DESK_Y, z: -.1, pad: .03, fit: 4 }); blob(-.5, DESK_Y, -.1, .12, .12);
   // gaming chair (spins when clicked): the SimReady office chair's base and gas lift under a seat built in chair.js; it rests turned three-quarters toward the camera so the front reads.
-  // It stands beside the desk's left end, not in front of it: there its back hid the Contact stack and the lamp from every framing.
+  // It stands off the desk's front-left corner: further right its back hid the Contact stack and the lamp from every framing; any closer to the
+  // wall or the desk corner and its spin (radius ~0.54 m) would cut through them.
   const chairM = inst('chair'); fix(chairM, m => { if (m.color && m.color.getHex() === 0 && !m.map) { m.color.set(0x3a3f4a); m.roughness = .85; } }); buildGamingChair(chairM);
-  const chair = thing('chair', [place(chairM, { ry: Math.PI })], { x: -1.6, y: 0, z: .15, fit: 1.6 }); chair.pivot.rotation.y = CH_YAW; chair.spin = 0; chair.spinV = 0; blob(-1.6, 0, .15, .8, .8);
+  const chair = thing('chair', [place(chairM, { ry: Math.PI })], { x: -1.48, y: 0, z: .55, fit: 1.6 }); chair.pivot.rotation.y = CH_YAW; chair.spin = 0; chair.spinV = 0; blob(-1.48, 0, .55, .8, .8);
   // Mochi, curled up in her pink bed on a small round rug in front of the desk's right half (in the frame on phones too). Her pivot is wobbled only a little on hover.
   const mochi = createMochi({ reduced: () => matchMedia('(prefers-reduced-motion: reduce)').matches }), MX = .62, MZ = .5;
   { const mr = new THREE.Mesh(new THREE.CircleGeometry(.38, 40), std({ color: 0xcdbca0 })); mr.rotation.x = -Math.PI / 2; mr.position.set(MX, .004, MZ); scene.add(mr); }
@@ -455,10 +456,22 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
 
   /* ---------- pointer: hover (mouse), tap/click, limited drag (orbit, or pan in a portrait frame). One handler on #rm so a drag that starts on a pin still works. ---------- */
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(); ray.layers.set(1);
-  function pick(e) {
-    const r = canvas.getBoundingClientRect(); ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera);
+  function pickAt(v) {
+    ray.setFromCamera(v, camera);
     const hs = ray.intersectObjects(pickables, false), h = hs.find(x => x.object.userData.thing === lampThing) || hs[0];   // the lamp's own (thin) meshes win over the hit boxes around them
     return h ? h.object.userData.thing : null;
+  }
+  function pick(e) { const r = canvas.getBoundingClientRect(); return pickAt(ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1)); }
+  /* ?debug: can every hotspot be clicked in the current framing? 9 points over the front of each hot thing's hit box go through pickAt(); a thing whose
+     on-screen points mostly pick something else is hidden behind it. The lamp is left out: it is picked by its thin meshes, so check it by hovering. */
+  function blocked() {
+    camera.updateMatrixWorld(); const out = [];
+    for (const t of things) { if (!t.hot || t === lampThing) continue;
+      const bb = new THREE.Box3().setFromObject(t.hit), c = bb.getCenter(new THREE.Vector3()), s = bb.getSize(new THREE.Vector3()), by = {}; let own = 0, n = 0;
+      for (const fx of [-.3, 0, .3]) for (const fy of [-.3, 0, .3]) { const p = c.clone().add(new THREE.Vector3(fx * s.x, fy * s.y, s.z / 2)).project(camera); if (Math.abs(p.x) > 1 || Math.abs(p.y) > 1) continue;
+        n++; const k = pickAt(new THREE.Vector2(p.x, p.y))?.key; if (k === t.key) own++; else by[k] = (by[k] || 0) + 1; }
+      if (n && own < n / 2) out.push(`${t.key} ${own}/${n} (${Object.entries(by).map(e => e.join(':')).join(' ')})`); }
+    return out;
   }
   const rmEl = canvas.parentElement; let down = null, lastHoverT = 0;
   rmEl.addEventListener('pointerdown', e => {
@@ -541,6 +554,6 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
     react: k => { if (k === 'mochi') mochiReact(); },
     get size() { return [W, H, R, tier]; },
     state: () => ({ raf, moving: cam.moving, tier, R, focusK, pan: { ...panState(), x: pan.x, lo: pan.lo, hi: pan.hi } }),
-    dbg: /[?&]debug/.test(location.search) ? { L: THREE.MeshLambertMaterial, renderer, scene, camera, setRes: (r) => { R = r; setRes(); }, things, cube: () => cube, mochi, idle: () => { mochi.idle(); poke(); }, overlaps } : null,
+    dbg: /[?&]debug/.test(location.search) ? { L: THREE.MeshLambertMaterial, renderer, scene, camera, setRes: (r) => { R = r; setRes(); }, things, cube: () => cube, mochi, idle: () => { mochi.idle(); poke(); }, overlaps, blocked } : null,
   };
 }
