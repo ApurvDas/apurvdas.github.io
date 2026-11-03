@@ -385,11 +385,11 @@ const vb = $('#view-btn');
 function syncViewBtn() {
   const room = root.classList.contains('room'), why = root.dataset.why;
   vb.innerHTML = (room ? 'Classic' : '3D') + '<span class="vb-x"> view</span>';   // "view" drops out on a narrow bar
-  vb.hidden = room ? false : !((why === 'url' || why === 'saved') && !reduce && !saveData());
+  vb.hidden = room ? false : why === 'webgl';   // every other fallback (slow GPU, reduced motion, Save-Data, a saved choice) can still opt in
 }
 vb.addEventListener('click', () => {
   const u = new URL(location.href), toClassic = root.classList.contains('room');
-  try { toClassic ? localStorage.setItem('view', 'classic') : localStorage.removeItem('view'); } catch {}
+  try { localStorage.setItem('view', toClassic ? 'classic' : 'room'); } catch {}   // 'room' = chosen by hand: no reduced-motion fallback, no too-slow fallback
   toClassic ? u.searchParams.set('classic', '') : u.searchParams.delete('classic');
   u.search = u.search.replace(/classic=(&|$)/, 'classic$1'); location.href = u.toString();
 });

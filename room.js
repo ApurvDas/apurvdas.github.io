@@ -509,6 +509,7 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
 
   /* ---------- start-up probe: pick the pixel ratio (and whether reflections are on) once, while the room is still invisible ---------- */
   const BUDGET = 12.5;   // ms per back-to-back frame; this Intel UHD held 60 fps at ~12 ms (GPU time only)
+  let chosen = false; try { chosen = localStorage.getItem('view') === 'room'; } catch { /* no storage */ }   // picked "3D view" by hand: run on the lowest rung, never fall back as too slow
   let probeLog = null;
   function probe() {
     const g = renderer.getContext(), px = new Uint8Array(4), seen = new Set();
@@ -524,7 +525,7 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
         for (let k = 0; k < 11; k++) { const t0 = performance.now(); renderer.render(scene, camera); g.readPixels(0, 0, 1, 1, g.RGBA, g.UNSIGNED_BYTE, px); if (k > 2) ts.push(performance.now() - t0); }
         if (document.hidden && !qs.get('pr')) { tier = 'low'; R = 1; setEnv(false); setRes(); probeLog = { tier, R, med: 0, trail: ['hidden'] }; return resolve(); }   // a background tab gives meaningless timings: take the safe rung
         const med = ts.sort((a, b) => a - b)[ts.length >> 1], lastRung = i === rungs.length - 1; trail.push(`${tier}@${R}:${med.toFixed(1)}`);
-        if (med <= BUDGET || lastRung || qs.get('pr')) { probeLog = { tier, R, med: +med.toFixed(1), trail }; return med > 16 && !qs.get('pr') ? (() => { try { renderer.dispose(); renderer.forceContextLoss(); } catch { /* gone */ } reject(new Error('too slow: ' + trail.join(' '))); })() : resolve(); }
+        if (med <= BUDGET || lastRung || qs.get('pr')) { probeLog = { tier, R, med: +med.toFixed(1), trail }; return med > 16 && !qs.get('pr') && !chosen ? (() => { try { renderer.dispose(); renderer.forceContextLoss(); } catch { /* gone */ } reject(new Error('too slow: ' + trail.join(' '))); })() : resolve(); }
         i++; apply(); setTimeout(burst, 16);
       };
       apply(); setTimeout(burst, 30);

@@ -29,10 +29,10 @@
 try{if(localStorage.getItem('theme')==='dark')h.dataset.theme='dark'}catch(e){}
 var m=/role=(qa|systems|web|ai)/.exec(location.hash);if(m)h.dataset.role=m[1];
 setTimeout(function(){if(!h.classList.contains('ready'))h.classList.add('ready','rv-off')},2500);
-/* room (3D desk) or classic (the long page): decided once, here, before first paint. An explicit choice (?classic, or the saved one) wins; otherwise
+/* room (3D desk) or classic (the long page): decided once, here, before first paint. An explicit choice (?classic, or the saved one: 'classic', or 'room' from the 3D view button) wins; otherwise
    reduced motion and Save-Data get the classic page (phones get the room; the probe in room.js protects weak ones). WebGL failure or a slow GPU fall back later, in main.js. */
 var st='',c=navigator.connection;try{st=localStorage.getItem('view')||''}catch(e){}
-var why=/[?&]classic(?:[=&]|$)/.test(location.search)?'url':st==='classic'?'saved':matchMedia('(prefers-reduced-motion: reduce)').matches?'reduced':c&&c.saveData?'save-data':'';
+var why=/[?&]classic(?:[=&]|$)/.test(location.search)?'url':st==='classic'?'saved':st==='room'?'':matchMedia('(prefers-reduced-motion: reduce)').matches?'reduced':c&&c.saveData?'save-data':'';
 h.classList.add(why?'classic':'room');if(why)h.dataset.why=why})(document)
 </script>
 <script type="importmap">
