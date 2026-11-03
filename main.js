@@ -60,7 +60,7 @@ function flipRoute(R) {
 }
 function setHeroText(R, instant) {
   const box = $('#hero-role'), fade = [box, $('#role-tag'), $('#role-avail'), $('.hero-cta')],
-    put = () => { $('#role-tag').textContent = R.tagline; $('#role-avail').textContent = R.avail; $$('.cv-dl').forEach(a => a.href = `cv/Apurv-Das-CV-${R.cv}.pdf`); $('#role-headline').textContent = R.headline; const s = $('#role-summary'); s.textContent = R.summary; s.classList.remove('open'); const m = $('.more-s'); if (m) m.textContent = 'Read more'; };
+    put = () => { $('#role-tag').textContent = R.tagline; $('#role-avail').textContent = R.avail; $$('.cv-dl').forEach(a => a.href = `cv/Apurv-Das-CV-${R.cv}.pdf`); $('#role-headline').textContent = R.headline; const s = $('#role-summary'); s.textContent = ROOM ? R.summary.replace('the route re-orders to', 'the desk shows') /* the room has no route */ : R.summary; s.classList.remove('open'); const m = $('.more-s'); if (m) m.textContent = 'Read more'; };
   if (instant || reduce) return put();
   fade.forEach(e => e.style.opacity = 0); setTimeout(() => { put(); fade.forEach(e => e.style.opacity = ''); }, 140);
 }
@@ -374,7 +374,7 @@ function armReveals() {
 /* ============================== boot ============================== */
 setTheme(root.dataset.theme, false);
 switchRole(parseRole(), true);
-if (ROOM) { glass.forEach(showNow); $$('.panels').forEach(p => p.classList.add('in')); } else { observeReveals(); armReveals(); }
+if (ROOM) { $('#rp-l').textContent = 'Show me the work for'; glass.forEach(showNow); $$('.panels').forEach(p => p.classList.add('in')); } else { observeReveals(); armReveals(); }
 addEventListener('load', () => document.fonts?.ready.then(() => layout(false)));
 const mqData = matchMedia('(prefers-reduced-data: reduce)'), saveData = () => mqData.matches || !!navigator.connection?.saveData;   // static frame, no travel
 const sceneStill = () => { scene && (scene.setReduced(reduce || saveData()), scene.setStatic(saveData())); };
@@ -417,7 +417,7 @@ async function bootRoom() {
   catch (e) {
     console.warn('The 3D room cannot start; showing the classic page', e);
     ROOM = false; ui = null; root.classList.remove('room', 'room-on'); root.classList.add('classic'); root.dataset.why = /too slow/.test(String(e && e.message)) ? 'slow' : 'webgl';
-    applyOrder(role); syncViewBtn(); layout(false); update(true); observeReveals(); initMochi(); bootClassic();
+    applyOrder(role); setHeroText(ROLES[role], true); $('#rp-l').textContent = 'Show me the route for'; syncViewBtn(); layout(false); update(true); observeReveals(); initMochi(); bootClassic();
   }
 }
 idle(ROOM ? bootRoom : bootClassic);

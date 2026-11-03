@@ -420,6 +420,7 @@ table.sr { display: block; max-width: 1px; }
 html:not(.room) .room-only { display: none !important; }
 html.room, html.room body { overflow: hidden; height: 100%; }
 html.room :is(.cam, .scrim, .cam-ui, .paper, .dock, .mochi, .hl-status, .alt-read, .progress, .hint) { display: none !important; }
+html.room #summit :is(.eyebrow, .block-title, .flags, .sheet) { display: none; }   /* ropeway pieces: the room's Contact panel has its own title */
 html.room .hero { min-height: 100svh; transition: opacity .5s var(--out); }
 html.room-on .hero { opacity: 0; pointer-events: none; }
 /* once the room is up the hero keeps only its h1, visually hidden: the page's single h1 for assistive tech and crawlers */

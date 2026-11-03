@@ -176,7 +176,7 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
   box(bw + .06, bh + .06, .03, std({ color: 0xc8ccd2 }), 0, 0, 0, boardG);
   const boardFace = new THREE.Mesh(new THREE.PlaneGeometry(bw, bh), new THREE.MeshLambertMaterial({ map: board.tex })); boardFace.position.z = .017; boardG.add(boardFace);
   // rug under the chair
-  const rug = new THREE.Mesh(new THREE.CircleGeometry(.95, 48), std({ color: 0x3d5a6c })); rug.rotation.x = -Math.PI / 2; rug.position.set(-.7, .003, .45); rug.scale.y = .78; scene.add(rug);
+  const rug = new THREE.Mesh(new THREE.CircleGeometry(.72, 48), std({ color: 0x3d5a6c })); rug.rotation.x = -Math.PI / 2; rug.position.set(-1.25, .003, .32); rug.scale.y = .78; scene.add(rug);
 
   /* ---------- contact shadows (blob textures) ---------- */
   const blobTex = canvasTex(128, 128, (c, w, h) => { const g = c.createRadialGradient(64, 64, 4, 64, 64, 62); g.addColorStop(0, 'rgba(0,0,0,.65)'); g.addColorStop(.55, 'rgba(0,0,0,.28)'); g.addColorStop(1, 'rgba(0,0,0,0)'); c.fillStyle = g; c.fillRect(0, 0, w, h); }); blobTex.redraw();
@@ -236,12 +236,15 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
   { const ps = inst('paperstack'), pen = inst('pen'); place(ps, { ry: .25 }); fix(pen, (m, mesh) => { if (!m.transparent) m.color.set(0x1a2233); }); place(pen, { x: .02, y: .0335, z: .02, ry: -.5 });
     thing('summit', [ps, pen], { x: -1.1, y: DESK_Y, z: -.25, fit: 2.8, pad: .02, dir: [.75, .6, 1] }); blob(-1.1, DESK_Y, -.25, .34, .42, .25); }
   // lamp: clamped to the left edge of the desk; its head carries the warm light
-  let lampThing; { const la = inst('lamp'); lampThing = thing('lamp', [place(la, { ry: Math.PI / 2 + .35 })], { x: -1.22, y: DESK_Y, z: -.55, fit: 1.9 }); lampThing.lampOn = 1; lampThing.lampT = 1; }
+  let lampThing; { const la = inst('lamp'); lampThing = thing('lamp', [place(la, { ry: Math.PI / 2 + .35 })], { x: -1.22, y: DESK_Y, z: -.55, fit: 1.9 }); lampThing.lampOn = 1; lampThing.lampT = 1;
+    // its box would cover most of the left monitor (the arm swings over it), so the lamp is picked by its own meshes instead
+    pickables.splice(pickables.indexOf(lampThing.hit), 1); lampThing.pivot.traverse(m => { if (m.isMesh && m !== lampThing.hit) { m.layers.enable(1); m.userData.thing = lampThing; pickables.push(m); } }); }
   // rubik's cube: this is the desk prop; clicking it opens the playable cube (rubik.js, built on first open)
   const rubik = thing('rubik', [place(inst('rubik'), { ry: .4 })], { x: -.5, y: DESK_Y, z: -.1, pad: .03, fit: 4 }); blob(-.5, DESK_Y, -.1, .12, .12);
-  // gaming chair (spins when clicked): the SimReady office chair's base and gas lift under a seat built in chair.js; it rests turned three-quarters toward the camera so the front reads
+  // gaming chair (spins when clicked): the SimReady office chair's base and gas lift under a seat built in chair.js; it rests turned three-quarters toward the camera so the front reads.
+  // It stands beside the desk's left end, not in front of it: there its back hid the Contact stack and the lamp from every framing.
   const chairM = inst('chair'); fix(chairM, m => { if (m.color && m.color.getHex() === 0 && !m.map) { m.color.set(0x3a3f4a); m.roughness = .85; } }); buildGamingChair(chairM);
-  const chair = thing('chair', [place(chairM, { ry: Math.PI })], { x: -1.1, y: 0, z: .45, fit: 1.6 }); chair.pivot.rotation.y = CH_YAW; chair.spin = 0; chair.spinV = 0; blob(-1.1, 0, .45, .8, .8);
+  const chair = thing('chair', [place(chairM, { ry: Math.PI })], { x: -1.6, y: 0, z: .15, fit: 1.6 }); chair.pivot.rotation.y = CH_YAW; chair.spin = 0; chair.spinV = 0; blob(-1.6, 0, .15, .8, .8);
   // Mochi, curled up in her pink bed on a small round rug in front of the desk's right half (in the frame on phones too). Her pivot is wobbled only a little on hover.
   const mochi = createMochi({ reduced: () => matchMedia('(prefers-reduced-motion: reduce)').matches }), MX = .62, MZ = .5;
   { const mr = new THREE.Mesh(new THREE.CircleGeometry(.38, 40), std({ color: 0xcdbca0 })); mr.rotation.x = -Math.PI / 2; mr.position.set(MX, .004, MZ); scene.add(mr); }
@@ -454,7 +457,8 @@ export async function createRoom({ canvas, hotLayer, role = 'all', theme = 'ligh
   const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(); ray.layers.set(1);
   function pick(e) {
     const r = canvas.getBoundingClientRect(); ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera);
-    const h = ray.intersectObjects(pickables, false)[0]; return h ? h.object.userData.thing : null;
+    const hs = ray.intersectObjects(pickables, false), h = hs.find(x => x.object.userData.thing === lampThing) || hs[0];   // the lamp's own (thin) meshes win over the hit boxes around them
+    return h ? h.object.userData.thing : null;
   }
   const rmEl = canvas.parentElement; let down = null, lastHoverT = 0;
   rmEl.addEventListener('pointerdown', e => {
